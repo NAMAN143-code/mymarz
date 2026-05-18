@@ -10,21 +10,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.SmartLifecycle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for {@link HotSwapAutoConfiguration} using Spring Boot's
- * {@link ApplicationContextRunner} — no real application context started.
+ * Unit tests for {@link HotSwapAutoConfiguration} using
+ * {@link ApplicationContextRunner} — fast, no real application context.
  */
 class HotSwapAutoConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(HotSwapAutoConfiguration.class));
-
-    // -------------------------------------------------------------------------
-    // All beans registered by default
-    // -------------------------------------------------------------------------
 
     @Test
     @DisplayName("registers all HotSwap beans when enabled (default)")
@@ -36,12 +33,9 @@ class HotSwapAutoConfigurationTest {
             assertThat(ctx).hasSingleBean(TypeCoercer.class);
             assertThat(ctx).hasSingleBean(HotSwapBeanPostProcessor.class);
             assertThat(ctx).hasSingleBean(ConfigSourcePoller.class);
+            assertThat(ctx).hasBean("hotSwapPollerLifecycle");
         });
     }
-
-    // -------------------------------------------------------------------------
-    // hotswap.enabled=false disables everything
-    // -------------------------------------------------------------------------
 
     @Test
     @DisplayName("does not register any beans when hotswap.enabled=false")
@@ -52,12 +46,9 @@ class HotSwapAutoConfigurationTest {
                     assertThat(ctx).doesNotHaveBean(HotSwapRegistry.class);
                     assertThat(ctx).doesNotHaveBean(ConfigSourcePoller.class);
                     assertThat(ctx).doesNotHaveBean(HotSwapBeanPostProcessor.class);
+                    assertThat(ctx).doesNotHaveBean(SmartLifecycle.class);
                 });
     }
-
-    // -------------------------------------------------------------------------
-    // User-defined beans take precedence (ConditionalOnMissingBean)
-    // -------------------------------------------------------------------------
 
     @Test
     @DisplayName("uses user-provided HotSwapRegistry when defined")
@@ -82,10 +73,6 @@ class HotSwapAutoConfigurationTest {
                     assertThat(ctx.getBean(ConfigSourceFactory.class)).isSameAs(customFactory);
                 });
     }
-
-    // -------------------------------------------------------------------------
-    // Properties binding
-    // -------------------------------------------------------------------------
 
     @Test
     @DisplayName("binds hotswap.* properties correctly")
@@ -116,16 +103,11 @@ class HotSwapAutoConfigurationTest {
         });
     }
 
-    // -------------------------------------------------------------------------
-    // ConfigSourceFactory has file:// creator registered
-    // -------------------------------------------------------------------------
-
     @Test
     @DisplayName("ConfigSourceFactory has file:// scheme registered out of the box")
     void fileSchemeRegisteredByDefault() {
         contextRunner.run(ctx -> {
             ConfigSourceFactory factory = ctx.getBean(ConfigSourceFactory.class);
-            // file:// URIs should resolve (even if file doesn't exist, source is created)
             assertThat(factory.create("file:///tmp/nonexistent-test-config.yml")).isNotNull();
         });
     }

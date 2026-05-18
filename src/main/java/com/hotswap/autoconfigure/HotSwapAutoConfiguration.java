@@ -14,26 +14,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.event.ContextRefreshedEvent;
-import org.springframework.context.event.EventListener;
 
 /**
  * Spring Boot auto-configuration for HotSwap.
- *
- * <p>Wires the full HotSwap stack automatically when this starter is on the classpath:</p>
- * <ol>
- *   <li>{@link HotSwapProperties} — bound from {@code application.yml}</li>
- *   <li>{@link HotSwapRegistry} — central field registry</li>
- *   <li>{@link ConfigFormatParser} — YAML/JSON/.properties parser</li>
- *   <li>{@link ConfigSourceFactory} — URI-to-source resolver; {@code file://} registered by default</li>
- *   <li>{@link TypeCoercer} — String → Java type coercion</li>
- *   <li>{@link HotSwapBeanPostProcessor} — scans beans for {@code @HotSwap} at startup</li>
- *   <li>{@link ConfigSourcePoller} — polling scheduler; starts after context is fully refreshed</li>
- * </ol>
- *
- * <p>All beans are conditional on {@code @ConditionalOnMissingBean}, so user-defined
- * beans of the same type always take precedence.</p>
  *
  * <p>Disabled entirely when {@code hotswap.enabled=false}.</p>
  *
@@ -45,10 +30,6 @@ import org.springframework.context.event.EventListener;
 public class HotSwapAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(HotSwapAutoConfiguration.class);
-
-    // -------------------------------------------------------------------------
-    // Core infrastructure beans
-    // -------------------------------------------------------------------------
 
     @Bean
     @ConditionalOnMissingBean
@@ -66,7 +47,6 @@ public class HotSwapAutoConfiguration {
     @ConditionalOnMissingBean
     public ConfigSourceFactory configSourceFactory(ConfigFormatParser parser) {
         ConfigSourceFactory factory = new ConfigSourceFactory();
-        // Register built-in file:// scheme
         factory.registerCreator("file", uri -> new FileConfigSource(uri, parser));
         log.debug("HotSwap: registered built-in 'file' ConfigSource creator");
         return factory;
@@ -78,25 +58,25 @@ public class HotSwapAutoConfiguration {
         return new TypeCoercer();
     }
 
-    // -------------------------------------------------------------------------
-    // BeanPostProcessor — must be registered early so it sees all beans
-    // -------------------------------------------------------------------------
-
+    /**
+     * Static @Bean ensures the BPP is registered before other beans.
+     * Intentionally omits @ConditionalOnMissingBean — condition evaluation
+     * on static BPP methods in @AutoConfiguration is unreliable across
+     * Spring Boot 3.x minor versions.
+     */
     @Bean
-    @ConditionalOnMissingBean
     public static HotSwapBeanPostProcessor hotSwapBeanPostProcessor(
             HotSwapRegistry registry,
             ConfigSourceFactory factory,
             TypeCoercer coercer) {
-        // static @Bean method ensures BPP is registered before other beans are created
         return new HotSwapBeanPostProcessor(registry, factory, coercer);
     }
 
-    // -------------------------------------------------------------------------
-    // Poller — started AFTER context is fully refreshed
-    // -------------------------------------------------------------------------
-
-    @Bean
+    /**
+     * destroyMethod = "shutdown" ensures the ScheduledExecutorService is
+     * cleaned up when the context closes (prevents thread leaks in tests).
+     */
+    @Bean(destroyMethod = "shutdown")
     @ConditionalOnMissingBean
     public ConfigSourcePoller configSourcePoller(
             HotSwapRegistry registry,
@@ -107,29 +87,27 @@ public class HotSwapAutoConfiguration {
     }
 
     /**
-     * Start the poller after the full application context is initialized.
-     * Using {@code ContextRefreshedEvent} ensures all beans have been
-     * post-processed and all {@code @HotSwap} fields registered before
-     * the first poll fires.
+     * SmartLifecycle starts the poller AFTER all beans are post-processed.
+     * Replaces the earlier @EventListener approach which had parameter
+     * constraint issues and fragile getBean() lookups.
      */
-    @EventListener(ContextRefreshedEvent.class)
-    public void onContextRefreshed(ContextRefreshedEvent event) {
-        // @EventListener only supports a single parameter (the event itself).
-        // Retrieve the poller from the context via the event to avoid that constraint
-        // and to also avoid a circular-dependency if this class declares the poller @Bean.
-        try {
-            ConfigSourcePoller poller = event.getApplicationContext()
-                                             .getBean(ConfigSourcePoller.class);
-            if (!poller.isRunning()) {
-                poller.start();
-                HotSwapRegistry registry = event.getApplicationContext()
-                                                .getBean(HotSwapRegistry.class);
-                log.info("HotSwap poller started after context refresh ({} fields, {} sources)",
-                        registry.getFieldCount(), registry.getSourceCount());
+    @Bean
+    public SmartLifecycle hotSwapPollerLifecycle(ConfigSourcePoller poller, HotSwapRegistry registry) {
+        return new SmartLifecycle() {
+            private volatile boolean running = false;
+
+            @Override public void start() {
+                if (!poller.isRunning()) {
+                    poller.start();
+                    log.info("HotSwap poller started ({} fields, {} sources)",
+                            registry.getFieldCount(), registry.getSourceCount());
+                }
+                running = true;
             }
-        } catch (Exception e) {
-            // Poller bean may not be present if hotswap.enabled=false or overridden
-            log.debug("HotSwap poller not available at context refresh: {}", e.getMessage());
-        }
+
+            @Override public void stop() { running = false; }
+            @Override public boolean isRunning() { return running; }
+            @Override public int getPhase() { return Integer.MAX_VALUE; }
+        };
     }
 }

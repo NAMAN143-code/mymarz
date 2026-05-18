@@ -5,16 +5,16 @@ import com.hotswap.core.HotSwapEvent;
 import com.hotswap.core.HotSwapRegistry;
 import com.hotswap.core.ConfigSourcePoller;
 import com.hotswap.core.ConfigSourceFactory;
-import com.hotswap.type.TypeCoercer;
-import com.hotswap.source.ConfigFormatParser;
 import com.hotswap.core.HotSwapBeanPostProcessor;
+import com.hotswap.source.ConfigFormatParser;
+import com.hotswap.type.TypeCoercer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 import org.springframework.test.context.TestPropertySource;
 
@@ -25,14 +25,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * End-to-end integration test for {@link HotSwapAutoConfiguration}.
  *
- * <p>Uses a minimal {@code @SpringBootApplication} bootstrap class so that
- * Spring Boot's {@code AutoConfiguration.imports} scanning is activated,
- * which in turn loads {@link HotSwapAutoConfiguration} automatically.</p>
- *
- * <p>This test focuses on infrastructure wiring — that all beans are present,
- * properties bind correctly, and the context starts cleanly. Per-field hot-swap
- * behaviour is covered by {@code ConfigSourcePollerTest} and
- * {@code FileConfigSourceTest}.</p>
+ * <p>Uses {@link SpringBootConfiguration} + {@link ImportAutoConfiguration}
+ * rather than {@code @SpringBootApplication}, so we load ONLY our auto-config
+ * and avoid any interference from Spring Boot's built-in auto-configurations
+ * (DataSource, Web, etc.) that might fail without their required dependencies.</p>
  */
 @SpringBootTest(classes = HotSwapIntegrationTest.TestApp.class)
 @TestPropertySource(properties = {
@@ -42,12 +38,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 class HotSwapIntegrationTest {
 
-    // -------------------------------------------------------------------------
-    // Minimal Spring Boot application — activates AutoConfiguration.imports
-    // -------------------------------------------------------------------------
-
-    @SpringBootApplication
-    @Configuration
+    /**
+     * Minimal bootstrap config.
+     * - @SpringBootConfiguration makes this discoverable by @SpringBootTest
+     * - @ImportAutoConfiguration loads ONLY HotSwapAutoConfiguration (not all of Spring Boot)
+     */
+    @SpringBootConfiguration
+    @ImportAutoConfiguration(HotSwapAutoConfiguration.class)
     static class TestApp {
 
         @Bean
@@ -61,16 +58,7 @@ class HotSwapIntegrationTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Test beans
-    // -------------------------------------------------------------------------
-
-    /**
-     * A bean with two {@code @HotSwap}-annotated fields.
-     * Uses the default source ({@code platform://hotswap}) — the fields will be
-     * registered in the registry; no source resolution error occurs, they simply
-     * retain their default values until a real platform agent connects.
-     */
+    /** Bean with @HotSwap-annotated fields (default source: platform://hotswap) */
     static class FeatureBean {
 
         @HotSwap(key = "feature.checkout.v2", pollInterval = 200)
@@ -83,7 +71,7 @@ class HotSwapIntegrationTest {
         int getRateLimit()      { return rateLimit;  }
     }
 
-    /** Captures {@link HotSwapEvent}s fired during the test. */
+    /** Captures HotSwapEvents for assertion */
     static class EventCaptor {
         final CopyOnWriteArrayList<HotSwapEvent> events = new CopyOnWriteArrayList<>();
 
@@ -97,15 +85,14 @@ class HotSwapIntegrationTest {
     // Injected beans
     // -------------------------------------------------------------------------
 
-    @Autowired HotSwapRegistry         registry;
-    @Autowired HotSwapProperties       properties;
-    @Autowired ConfigSourcePoller      poller;
-    @Autowired HotSwapAutoConfiguration autoConfig;
-    @Autowired ConfigSourceFactory     sourceFactory;
-    @Autowired TypeCoercer             typeCoercer;
-    @Autowired ConfigFormatParser      formatParser;
+    @Autowired HotSwapRegistry          registry;
+    @Autowired HotSwapProperties        properties;
+    @Autowired ConfigSourcePoller       poller;
+    @Autowired ConfigSourceFactory      sourceFactory;
+    @Autowired TypeCoercer              typeCoercer;
+    @Autowired ConfigFormatParser       formatParser;
     @Autowired HotSwapBeanPostProcessor beanPostProcessor;
-    @Autowired EventCaptor             eventCaptor;
+    @Autowired EventCaptor              eventCaptor;
 
     // -------------------------------------------------------------------------
     // Tests
@@ -116,7 +103,6 @@ class HotSwapIntegrationTest {
     void allInfrastructureBeansPresent() {
         assertThat(registry).isNotNull();
         assertThat(poller).isNotNull();
-        assertThat(autoConfig).isNotNull();
         assertThat(sourceFactory).isNotNull();
         assertThat(typeCoercer).isNotNull();
         assertThat(formatParser).isNotNull();
@@ -134,14 +120,12 @@ class HotSwapIntegrationTest {
     @Test
     @DisplayName("FeatureBean @HotSwap fields are registered in the registry")
     void hotSwapFieldsRegistered() {
-        // Both fields on FeatureBean should be registered at startup
         assertThat(registry.getFieldCount()).isEqualTo(2);
     }
 
     @Test
     @DisplayName("registry records the correct source URI for registered fields")
     void registryRecordsSourceUri() {
-        // Default source is platform://hotswap (annotation default)
         assertThat(registry.getAllSourceUris())
                 .anyMatch(uri -> uri.equals("platform://hotswap"));
     }
@@ -149,7 +133,6 @@ class HotSwapIntegrationTest {
     @Test
     @DisplayName("ConfigSourceFactory has file:// scheme pre-registered")
     void fileSchemePreRegistered() {
-        // Creating a file:// source should not return null
         assertThat(sourceFactory.create("file:///tmp/nonexistent-test.yml")).isNotNull();
     }
 
