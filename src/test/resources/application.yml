@@ -1,0 +1,10 @@
+# Default test application properties
+# Individual test classes override these with @TestPropertySource
+hotswap:
+  enabled: true
+  default-poll-interval-ms: 5000
+  thread-pool-size: 1
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
