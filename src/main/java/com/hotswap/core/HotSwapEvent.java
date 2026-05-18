@@ -23,7 +23,6 @@ public class HotSwapEvent extends ApplicationEvent {
     private final Object oldValue;
     private final Object newValue;
     private final String configSource;
-    private final long eventTimestamp;
 
     /**
      * Create a new HotSwapEvent.
@@ -40,7 +39,6 @@ public class HotSwapEvent extends ApplicationEvent {
         this.oldValue = oldValue;
         this.newValue = newValue;
         this.configSource = configSource;
-        this.eventTimestamp = System.currentTimeMillis();
     }
 
     /** @return the configuration key that changed */
@@ -61,11 +59,6 @@ public class HotSwapEvent extends ApplicationEvent {
     /** @return the source URI that provided this change */
     public String getConfigSource() {
         return configSource;
-    }
-
-    @Override
-    public long getTimestamp() {
-        return eventTimestamp;
     }
 
     @Override
