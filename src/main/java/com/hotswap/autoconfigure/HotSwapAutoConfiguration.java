@@ -9,7 +9,6 @@ import com.hotswap.source.FileConfigSource;
 import com.hotswap.type.TypeCoercer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -114,16 +113,23 @@ public class HotSwapAutoConfiguration {
      * the first poll fires.
      */
     @EventListener(ContextRefreshedEvent.class)
-    public void onContextRefreshed(ContextRefreshedEvent event,
-                                   ObjectProvider<ConfigSourcePoller> pollerProvider) {
-        ConfigSourcePoller poller = pollerProvider.getIfAvailable();
-        if (poller != null && !poller.isRunning()) {
-            poller.start();
-            log.info("HotSwap poller started after context refresh ({} fields, {} sources)",
-                    event.getApplicationContext()
-                         .getBean(HotSwapRegistry.class).getFieldCount(),
-                    event.getApplicationContext()
-                         .getBean(HotSwapRegistry.class).getSourceCount());
+    public void onContextRefreshed(ContextRefreshedEvent event) {
+        // @EventListener only supports a single parameter (the event itself).
+        // Retrieve the poller from the context via the event to avoid that constraint
+        // and to also avoid a circular-dependency if this class declares the poller @Bean.
+        try {
+            ConfigSourcePoller poller = event.getApplicationContext()
+                                             .getBean(ConfigSourcePoller.class);
+            if (!poller.isRunning()) {
+                poller.start();
+                HotSwapRegistry registry = event.getApplicationContext()
+                                                .getBean(HotSwapRegistry.class);
+                log.info("HotSwap poller started after context refresh ({} fields, {} sources)",
+                        registry.getFieldCount(), registry.getSourceCount());
+            }
+        } catch (Exception e) {
+            // Poller bean may not be present if hotswap.enabled=false or overridden
+            log.debug("HotSwap poller not available at context refresh: {}", e.getMessage());
         }
     }
 }

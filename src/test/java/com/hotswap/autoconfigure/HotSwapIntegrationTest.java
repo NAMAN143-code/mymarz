@@ -3,69 +3,56 @@ package com.hotswap.autoconfigure;
 import com.hotswap.annotation.HotSwap;
 import com.hotswap.core.HotSwapEvent;
 import com.hotswap.core.HotSwapRegistry;
+import com.hotswap.core.ConfigSourcePoller;
+import com.hotswap.core.ConfigSourceFactory;
+import com.hotswap.type.TypeCoercer;
+import com.hotswap.source.ConfigFormatParser;
+import com.hotswap.core.HotSwapBeanPostProcessor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Component;
 import org.springframework.test.context.TestPropertySource;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 
 /**
- * End-to-end integration test: verifies that a {@code @HotSwap}-annotated bean
- * picks up live file changes without a restart.
+ * End-to-end integration test for {@link HotSwapAutoConfiguration}.
  *
- * <p>Flow:</p>
- * <ol>
- *   <li>Write initial config to a temp file</li>
- *   <li>Boot a real Spring Boot context against that file</li>
- *   <li>Assert the annotated field has the initial value</li>
- *   <li>Overwrite the file with a new value</li>
- *   <li>Awaitility polls until the field reflects the new value</li>
- *   <li>Assert a {@link HotSwapEvent} was published</li>
- * </ol>
+ * <p>Uses a minimal {@code @SpringBootApplication} bootstrap class so that
+ * Spring Boot's {@code AutoConfiguration.imports} scanning is activated,
+ * which in turn loads {@link HotSwapAutoConfiguration} automatically.</p>
+ *
+ * <p>This test focuses on infrastructure wiring — that all beans are present,
+ * properties bind correctly, and the context starts cleanly. Per-field hot-swap
+ * behaviour is covered by {@code ConfigSourcePollerTest} and
+ * {@code FileConfigSourceTest}.</p>
  */
-@SpringBootTest(classes = HotSwapIntegrationTest.TestConfig.class)
+@SpringBootTest(classes = HotSwapIntegrationTest.TestApp.class)
 @TestPropertySource(properties = {
         "hotswap.enabled=true",
-        "hotswap.default-poll-interval-ms=200"   // fast poll for tests
+        "hotswap.default-poll-interval-ms=200",
+        "hotswap.thread-pool-size=1"
 })
 class HotSwapIntegrationTest {
 
     // -------------------------------------------------------------------------
-    // Test application config
+    // Minimal Spring Boot application — activates AutoConfiguration.imports
     // -------------------------------------------------------------------------
 
+    @SpringBootApplication
     @Configuration
-    static class TestConfig {
-
-        /** Create the temp config file before the context starts */
-        static Path configFile;
-
-        static {
-            try {
-                configFile = Files.createTempFile("hotswap-it-", ".yml");
-                Files.writeString(configFile, "feature:\n  checkout:\n    v2: false\nrate.limit: 50\n");
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to create temp config file", e);
-            }
-        }
+    static class TestApp {
 
         @Bean
         public FeatureBean featureBean() {
-            return new FeatureBean(configFile.toAbsolutePath().toString());
+            return new FeatureBean();
         }
 
         @Bean
@@ -74,30 +61,29 @@ class HotSwapIntegrationTest {
         }
     }
 
-    /** Bean with two @HotSwap fields backed by the temp file */
+    // -------------------------------------------------------------------------
+    // Test beans
+    // -------------------------------------------------------------------------
+
+    /**
+     * A bean with two {@code @HotSwap}-annotated fields.
+     * Uses the default source ({@code platform://hotswap}) — the fields will be
+     * registered in the registry; no source resolution error occurs, they simply
+     * retain their default values until a real platform agent connects.
+     */
     static class FeatureBean {
 
-        private final String filePath;
-
         @HotSwap(key = "feature.checkout.v2", pollInterval = 200)
-        private boolean checkoutV2;
+        private boolean checkoutV2 = false;
 
         @HotSwap(key = "rate.limit", pollInterval = 200)
-        private int rateLimit;
+        private int rateLimit = 0;
 
-        FeatureBean(String filePath) {
-            this.filePath = filePath;
-        }
-
-        // Note: source is set by the annotation, but we need the dynamic path.
-        // For integration test we use a static config path via system property.
-        // The real @HotSwap source URI is injected via the @Bean factory method.
         boolean isCheckoutV2() { return checkoutV2; }
-        int getRateLimit() { return rateLimit; }
+        int getRateLimit()      { return rateLimit;  }
     }
 
-    /** Captures HotSwapEvents fired during the test */
-    @Component
+    /** Captures {@link HotSwapEvent}s fired during the test. */
     static class EventCaptor {
         final CopyOnWriteArrayList<HotSwapEvent> events = new CopyOnWriteArrayList<>();
 
@@ -111,39 +97,66 @@ class HotSwapIntegrationTest {
     // Injected beans
     // -------------------------------------------------------------------------
 
-    @Autowired
-    HotSwapRegistry registry;
-
-    @Autowired
-    EventCaptor eventCaptor;
+    @Autowired HotSwapRegistry         registry;
+    @Autowired HotSwapProperties       properties;
+    @Autowired ConfigSourcePoller      poller;
+    @Autowired HotSwapAutoConfiguration autoConfig;
+    @Autowired ConfigSourceFactory     sourceFactory;
+    @Autowired TypeCoercer             typeCoercer;
+    @Autowired ConfigFormatParser      formatParser;
+    @Autowired HotSwapBeanPostProcessor beanPostProcessor;
+    @Autowired EventCaptor             eventCaptor;
 
     // -------------------------------------------------------------------------
     // Tests
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("registry has registered HotSwap fields at startup")
-    void registryHasFields() {
-        assertThat(registry.getFieldCount()).isGreaterThanOrEqualTo(0);
-        // Registry count depends on whether the test bean's @HotSwap fields
-        // were resolved — source must be bound to a real file for > 0
-    }
-
-    @Test
-    @DisplayName("auto-configuration beans are present in context")
-    void autoConfigurationBeansPresent(
-            @Autowired HotSwapRegistry reg,
-            @Autowired com.hotswap.core.ConfigSourcePoller poller,
-            @Autowired HotSwapAutoConfiguration autoConfig) {
-        assertThat(reg).isNotNull();
+    @DisplayName("all HotSwap infrastructure beans are present in the context")
+    void allInfrastructureBeansPresent() {
+        assertThat(registry).isNotNull();
         assertThat(poller).isNotNull();
         assertThat(autoConfig).isNotNull();
+        assertThat(sourceFactory).isNotNull();
+        assertThat(typeCoercer).isNotNull();
+        assertThat(formatParser).isNotNull();
+        assertThat(beanPostProcessor).isNotNull();
     }
 
     @Test
-    @DisplayName("HotSwapProperties are bound from test properties")
-    void propertiesBound(@Autowired HotSwapProperties props) {
-        assertThat(props.isEnabled()).isTrue();
-        assertThat(props.getDefaultPollIntervalMs()).isEqualTo(200L);
+    @DisplayName("hotswap.* properties bind correctly from @TestPropertySource")
+    void propertiesBindCorrectly() {
+        assertThat(properties.isEnabled()).isTrue();
+        assertThat(properties.getDefaultPollIntervalMs()).isEqualTo(200L);
+        assertThat(properties.getThreadPoolSize()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FeatureBean @HotSwap fields are registered in the registry")
+    void hotSwapFieldsRegistered() {
+        // Both fields on FeatureBean should be registered at startup
+        assertThat(registry.getFieldCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("registry records the correct source URI for registered fields")
+    void registryRecordsSourceUri() {
+        // Default source is platform://hotswap (annotation default)
+        assertThat(registry.getAllSourceUris())
+                .anyMatch(uri -> uri.equals("platform://hotswap"));
+    }
+
+    @Test
+    @DisplayName("ConfigSourceFactory has file:// scheme pre-registered")
+    void fileSchemePreRegistered() {
+        // Creating a file:// source should not return null
+        assertThat(sourceFactory.create("file:///tmp/nonexistent-test.yml")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("EventCaptor bean is wired and ready")
+    void eventCaptorIsWired() {
+        assertThat(eventCaptor).isNotNull();
+        assertThat(eventCaptor.events).isEmpty();
     }
 }
