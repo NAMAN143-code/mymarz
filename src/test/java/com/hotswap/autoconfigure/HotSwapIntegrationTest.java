@@ -33,10 +33,9 @@ class HotSwapIntegrationTest {
         }
     }
 
-    @Autowired HotSwapRegistry           registry;
-    @Autowired TypeCoercer                typeCoercer;
-    @Autowired ConfigFormatParser         parser;
-    @Autowired com.hotswap.core.ConfigSourceResolver sourceResolver;
+    @Autowired HotSwapRegistry       registry;
+    @Autowired TypeCoercer            typeCoercer;
+    @Autowired ConfigFormatParser     parser;
 
     @Nested
     @DisplayName("Context startup")
