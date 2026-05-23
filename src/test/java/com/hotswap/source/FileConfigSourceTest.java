@@ -91,7 +91,7 @@ class FileConfigSourceTest {
         // Register a binding so the registry can receive changes
         AtomicReference<Object> ref = new AtomicReference<>(false);
         FieldBinding binding = new FieldBinding(
-                this, "TestBean", "enabled", ref,
+                this, "TestBean", "enabled", null, ref,
                 boolean.class, "feature.enabled",
                 "file://" + configFile.toAbsolutePath(), false
         );
@@ -126,7 +126,7 @@ class FileConfigSourceTest {
 
         AtomicReference<Object> ref = new AtomicReference<>(10);
         FieldBinding binding = new FieldBinding(
-                this, "TestBean", "count", ref,
+                this, "TestBean", "count", null, ref,
                 int.class, "count",
                 "file://" + configFile.toAbsolutePath(), false
         );

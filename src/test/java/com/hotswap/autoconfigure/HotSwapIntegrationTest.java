@@ -25,10 +25,10 @@ class HotSwapIntegrationTest {
         @Component
         static class SampleBean {
             @HotSwap(key = "feature.checkout.enabled", defaultValue = "true")
-            boolean checkoutEnabled = false;
+            volatile boolean checkoutEnabled = false;
 
             @HotSwap(key = "rate.limit.max", defaultValue = "100")
-            int maxRate = 0;
+            volatile int maxRate = 0;
         }
     }
 

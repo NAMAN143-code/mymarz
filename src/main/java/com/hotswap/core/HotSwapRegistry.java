@@ -115,6 +115,24 @@ public class HotSwapRegistry {
                 Object oldValue = binding.ref().getAndSet(coerced);
 
                 if (!Objects.equals(oldValue, coerced)) {
+                    // ── VOLATILE FIELD WRITEBACK ──────────────────────────────
+                    // The field is declared volatile by contract (enforced at
+                    // startup by BeanPostProcessor). field.set() performs a
+                    // volatile write, so all threads see the new value on their
+                    // next read — ~5ns cost, zero IO on the read path.
+                    //
+                    // The AtomicReference above is for CAS-based dedup (this
+                    // Objects.equals check) and health snapshots. The volatile
+                    // field is the actual read path for application code.
+                    if (binding.field() != null) {
+                        try {
+                            binding.field().set(binding.bean(), coerced);
+                        } catch (IllegalAccessException e) {
+                            log.error("Failed to write swapped value to {}.{}: {}",
+                                    binding.beanClassName(), binding.fieldName(), e.getMessage());
+                        }
+                    }
+
                     // Fire event ONLY if the value actually changed
                     // (protects against duplicate WatchService events)
                     if (binding.sensitive()) {

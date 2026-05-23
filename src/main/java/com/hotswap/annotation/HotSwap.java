@@ -11,12 +11,23 @@ import java.lang.annotation.Target;
  *
  * <p>The annotated field's value will be dynamically updated from an external
  * configuration source without requiring a JVM restart. Thread-safety is
- * guaranteed via internal {@link java.util.concurrent.atomic.AtomicReference} wrapping.</p>
+ * guaranteed via Java's {@code volatile} keyword — the field <strong>must</strong>
+ * be declared {@code volatile}. The application will fail fast at startup
+ * if a non-volatile field is annotated with {@code @HotSwap}.</p>
+ *
+ * <p><strong>Read path:</strong> Application code reads the volatile field
+ * directly (~5ns, zero IO, zero reflection). This is a standard JVM volatile
+ * read — the fastest possible cross-thread visibility mechanism.</p>
+ *
+ * <p><strong>Write path:</strong> When the config source detects a change,
+ * the new value is written to the volatile field via reflection from a
+ * background thread. The volatile write guarantees immediate visibility
+ * to all application threads.</p>
  *
  * <p>Minimal usage:</p>
  * <pre>
  * &#64;HotSwap(key = "feature.dark-mode.enabled")
- * private boolean darkModeEnabled = false;
+ * private volatile boolean darkModeEnabled = false;
  * </pre>
  *
  * <p>Full usage:</p>
@@ -30,7 +41,7 @@ import java.lang.annotation.Target;
  *     description = "Maximum API requests per minute",
  *     requiresApproval = true
  * )
- * private int maxRequests;
+ * private volatile int maxRequests;
  * </pre>
  *
  * @since 1.0.0

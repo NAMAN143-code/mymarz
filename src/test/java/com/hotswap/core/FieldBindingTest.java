@@ -15,7 +15,7 @@ class FieldBindingTest {
 
         FieldBinding binding = new FieldBinding(
                 bean, "PaymentService", "checkoutEnabled",
-                ref, boolean.class, "feature.checkout",
+                null, ref, boolean.class, "feature.checkout",
                 "file:///config.yml", false
         );
 
@@ -33,7 +33,7 @@ class FieldBindingTest {
     void sensitiveBinding() {
         FieldBinding binding = new FieldBinding(
                 new Object(), "SecretService", "apiKey",
-                new AtomicReference<>("secret-123"), String.class,
+                null, new AtomicReference<>("secret-123"), String.class,
                 "api.key", "file:///secrets.yml", true
         );
 
@@ -45,7 +45,7 @@ class FieldBindingTest {
         AtomicReference<Object> ref = new AtomicReference<>(false);
         FieldBinding binding = new FieldBinding(
                 new Object(), "TestBean", "field",
-                ref, boolean.class, "key",
+                null, ref, boolean.class, "key",
                 "file:///config.yml", false
         );
 
@@ -60,7 +60,7 @@ class FieldBindingTest {
     void recordIsImmutable() {
         AtomicReference<Object> ref = new AtomicReference<>("v1");
         FieldBinding b1 = new FieldBinding(
-                new Object(), "Bean", "field", ref,
+                new Object(), "Bean", "field", null, ref,
                 String.class, "key", "file:///c.yml", false
         );
 
