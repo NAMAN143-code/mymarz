@@ -2,6 +2,7 @@ package com.hotswap.autoconfigure;
 
 import com.hotswap.core.HotSwapBeanPostProcessor;
 import com.hotswap.core.HotSwapRegistry;
+import com.hotswap.core.SourceStrategyResolver;
 import com.hotswap.source.ConfigFormatParser;
 import com.hotswap.type.TypeCoercer;
 import org.slf4j.Logger;
@@ -48,6 +49,12 @@ public class HotSwapAutoConfiguration {
     @ConditionalOnMissingBean
     public ConfigFormatParser configFormatParser() {
         return new ConfigFormatParser();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SourceStrategyResolver sourceStrategyResolver() {
+        return new SourceStrategyResolver();
     }
 
     /**
