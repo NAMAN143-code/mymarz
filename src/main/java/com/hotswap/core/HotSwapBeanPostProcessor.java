@@ -16,12 +16,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * annotations and registers them as {@link FieldBinding} entries in the
  * {@link HotSwapRegistry} reverse index.
  *
- * <p>Initial value resolution order:</p>
- * <ol>
- *   <li>Config source (via {@link ConfigSourceResolver}) — the source of truth</li>
- *   <li>{@code @HotSwap(defaultValue = "...")} — fallback</li>
- *   <li>Java field initializer value — last resort</li>
- * </ol>
+ * <p>Per ADR-001 Amendment: on each bean initialization, scan all declared
+ * fields for the {@code @HotSwap} annotation. For each found, resolve the
+ * initial value, create an immutable {@link FieldBinding}, and register it
+ * in the reverse index.</p>
  *
  * @since 1.0.0
  */
@@ -31,14 +29,10 @@ public class HotSwapBeanPostProcessor implements BeanPostProcessor {
 
     private final HotSwapRegistry registry;
     private final TypeCoercer typeCoercer;
-    private final ConfigSourceResolver sourceResolver;
 
-    public HotSwapBeanPostProcessor(HotSwapRegistry registry,
-                                     TypeCoercer typeCoercer,
-                                     ConfigSourceResolver sourceResolver) {
+    public HotSwapBeanPostProcessor(HotSwapRegistry registry, TypeCoercer typeCoercer) {
         this.registry = registry;
         this.typeCoercer = typeCoercer;
-        this.sourceResolver = sourceResolver;
     }
 
     @Override
@@ -59,7 +53,7 @@ public class HotSwapBeanPostProcessor implements BeanPostProcessor {
         try {
             field.setAccessible(true);
 
-            // Resolve initial value (source → defaultValue → field initializer)
+            // Resolve initial value from field's Java initializer or defaultValue
             Object initialValue = resolveInitialValue(bean, field, annotation);
 
             // Write initial value to the field
@@ -86,26 +80,11 @@ public class HotSwapBeanPostProcessor implements BeanPostProcessor {
     }
 
     /**
-     * Resolve initial value: try config source first, then defaultValue, then field initializer.
+     * Resolve the initial value: try defaultValue annotation attribute,
+     * then fall back to the field's existing Java initializer value.
      */
     private Object resolveInitialValue(Object bean, Field field, HotSwap annotation) {
-        // 1. Try resolving from the config source
-        if (sourceResolver != null) {
-            try {
-                ConfigSource source = sourceResolver.resolve(annotation.source());
-                if (source != null) {
-                    String rawValue = source.resolve(annotation.key());
-                    if (rawValue != null) {
-                        return typeCoercer.coerce(rawValue, field.getType());
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to resolve initial value for key '{}' from source '{}': {}",
-                        annotation.key(), annotation.source(), e.getMessage());
-            }
-        }
-
-        // 2. Try defaultValue from annotation
+        // Try defaultValue from annotation
         String defaultValue = annotation.defaultValue();
         if (defaultValue != null && !defaultValue.isEmpty()) {
             try {
@@ -116,7 +95,7 @@ public class HotSwapBeanPostProcessor implements BeanPostProcessor {
             }
         }
 
-        // 3. Fall back to the field's existing value (Java initializer)
+        // Fall back to the field's existing value (Java initializer)
         try {
             return field.get(bean);
         } catch (Exception e) {

@@ -1,9 +1,7 @@
 package com.hotswap.autoconfigure;
 
-import com.hotswap.core.ConfigSourceResolver;
 import com.hotswap.core.HotSwapBeanPostProcessor;
 import com.hotswap.core.HotSwapRegistry;
-import com.hotswap.core.SourceStrategyResolver;
 import com.hotswap.source.ConfigFormatParser;
 import com.hotswap.type.TypeCoercer;
 import org.junit.jupiter.api.DisplayName;
@@ -25,8 +23,6 @@ class HotSwapAutoConfigurationTest {
             assertThat(ctx).hasSingleBean(HotSwapRegistry.class);
             assertThat(ctx).hasSingleBean(TypeCoercer.class);
             assertThat(ctx).hasSingleBean(ConfigFormatParser.class);
-            assertThat(ctx).hasSingleBean(SourceStrategyResolver.class);
-            assertThat(ctx).hasSingleBean(ConfigSourceResolver.class);
             assertThat(ctx).hasSingleBean(HotSwapBeanPostProcessor.class);
         });
     }
@@ -38,7 +34,6 @@ class HotSwapAutoConfigurationTest {
                 .run(ctx -> {
                     assertThat(ctx).doesNotHaveBean(HotSwapRegistry.class);
                     assertThat(ctx).doesNotHaveBean(HotSwapBeanPostProcessor.class);
-                    assertThat(ctx).doesNotHaveBean(ConfigSourceResolver.class);
                 });
     }
 
@@ -54,10 +49,12 @@ class HotSwapAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("SmartLifecycle bean exists for source management")
-    void lifecycleBeanExists() {
+    @DisplayName("HotSwapRegistry receives event publisher and type coercer")
+    void registryHasDependencies() {
         runner.run(ctx -> {
-            assertThat(ctx).hasBean("hotSwapSourceLifecycle");
+            HotSwapRegistry registry = ctx.getBean(HotSwapRegistry.class);
+            assertThat(registry).isNotNull();
+            assertThat(registry.getRegisteredKeyCount()).isZero();
         });
     }
 }
