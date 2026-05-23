@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -224,13 +225,115 @@ class HotSwapRegistryTest {
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // FIELD WRITEBACK — KAN-24 fix verification
+    // ═══════════════════════════════════════════════════════════════════
+
+    @Test
+    void onSourceChange_writesBackToActualBeanField() throws Exception {
+        // Create a real bean with a real field — this is the end-to-end proof
+        TestSwapBean bean = new TestSwapBean();
+        bean.enabled = false;
+
+        Field field = TestSwapBean.class.getDeclaredField("enabled");
+        field.setAccessible(true);
+
+        AtomicReference<Object> ref = new AtomicReference<>(false);
+        FieldBinding binding = new FieldBinding(
+                bean, "TestSwapBean", "enabled",
+                field, ref, boolean.class,
+                "feature.enabled", "file:///config.yml", false
+        );
+        registry.register("feature.enabled", binding);
+
+        // Swap via onSourceChange
+        registry.onSourceChange("file:///config.yml", Map.of("feature.enabled", "true"));
+
+        // AtomicReference is updated (existing behavior)
+        assertThat(ref.get()).isEqualTo(true);
+        // AND the actual field on the bean is updated (KAN-24 fix)
+        assertThat(bean.enabled).isTrue();
+    }
+
+    @Test
+    void onSourceChange_writesBackIntField() throws Exception {
+        TestSwapBean bean = new TestSwapBean();
+        bean.maxRequests = 100;
+
+        Field field = TestSwapBean.class.getDeclaredField("maxRequests");
+        field.setAccessible(true);
+
+        AtomicReference<Object> ref = new AtomicReference<>(100);
+        FieldBinding binding = new FieldBinding(
+                bean, "TestSwapBean", "maxRequests",
+                field, ref, int.class,
+                "rate.limit", "file:///config.yml", false
+        );
+        registry.register("rate.limit", binding);
+
+        registry.onSourceChange("file:///config.yml", Map.of("rate.limit", "500"));
+
+        assertThat(ref.get()).isEqualTo(500);
+        assertThat(bean.maxRequests).isEqualTo(500);
+    }
+
+    @Test
+    void onSourceChange_writesBackToMultipleBeanFields() throws Exception {
+        TestSwapBean bean1 = new TestSwapBean();
+        bean1.enabled = false;
+        TestSwapBean bean2 = new TestSwapBean();
+        bean2.enabled = false;
+
+        Field field1 = TestSwapBean.class.getDeclaredField("enabled");
+        field1.setAccessible(true);
+        Field field2 = TestSwapBean.class.getDeclaredField("enabled");
+        field2.setAccessible(true);
+
+        AtomicReference<Object> ref1 = new AtomicReference<>(false);
+        AtomicReference<Object> ref2 = new AtomicReference<>(false);
+
+        registry.register("feature.enabled", new FieldBinding(
+                bean1, "Bean1", "enabled", field1, ref1, boolean.class,
+                "feature.enabled", "file:///config.yml", false));
+        registry.register("feature.enabled", new FieldBinding(
+                bean2, "Bean2", "enabled", field2, ref2, boolean.class,
+                "feature.enabled", "file:///config.yml", false));
+
+        registry.onSourceChange("file:///config.yml", Map.of("feature.enabled", "true"));
+
+        assertThat(bean1.enabled).isTrue();
+        assertThat(bean2.enabled).isTrue();
+    }
+
+    /** Test bean with volatile fields for writeback verification. */
+    static class TestSwapBean {
+        volatile boolean enabled;
+        volatile int maxRequests;
+        volatile String greeting;
+    }
+
+    /** Bean with non-volatile field — should be rejected by BeanPostProcessor. */
+    static class NonVolatileBean {
+        boolean enabled;  // NOT volatile — BeanPostProcessor should reject this
+    }
+
+    /** Bean with static field — should be rejected. */
+    static class StaticFieldBean {
+        static volatile boolean enabled;
+    }
+
+    /** Bean with final field — should be rejected. */
+    static class FinalFieldBean {
+        final volatile boolean enabled = false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // HELPERS
     // ═══════════════════════════════════════════════════════════════════
 
     private FieldBinding createBinding(String key, Class<?> type, Object initialValue) {
         return new FieldBinding(
                 new Object(), "TestBean", "testField",
-                new AtomicReference<>(initialValue), type,
+                null, new AtomicReference<>(initialValue), type,
                 key, "file:///config.yml", false
         );
     }
@@ -239,16 +342,16 @@ class HotSwapRegistryTest {
                                         String beanClass, String fieldName) {
         return new FieldBinding(
                 new Object(), beanClass, fieldName,
-                new AtomicReference<>(initialValue), type,
+                null, new AtomicReference<>(initialValue), type,
                 key, "file:///config.yml", false
         );
     }
 
     private FieldBinding binding(String key, Class<?> type, AtomicReference<Object> ref) {
-        return new FieldBinding(new Object(), "TestBean", "testField", ref, type, key, "file:///config.yml", false);
+        return new FieldBinding(new Object(), "TestBean", "testField", null, ref, type, key, "file:///config.yml", false);
     }
 
     private FieldBinding binding(String key, Class<?> type, AtomicReference<Object> ref, String beanClass) {
-        return new FieldBinding(new Object(), beanClass, "testField", ref, type, key, "file:///config.yml", false);
+        return new FieldBinding(new Object(), beanClass, "testField", null, ref, type, key, "file:///config.yml", false);
     }
 }
