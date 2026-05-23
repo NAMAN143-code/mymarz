@@ -9,15 +9,17 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.util.ReflectionUtils;
 
 import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Spring {@link BeanPostProcessor} that scans beans for {@code @HotSwap}
- * annotations and registers them with the {@link HotSwapRegistry}.
+ * annotations and registers them as {@link FieldBinding} entries in the
+ * {@link HotSwapRegistry} reverse index.
  *
- * <p>Per ADR-001 lifecycle Phase 1 (INIT): on each bean initialization,
- * scan all declared fields for the {@code @HotSwap} annotation. For each
- * found, resolve the initial value from the config source (or use the
- * default), create an {@link HotSwapFieldHolder}, and register it.</p>
+ * <p>Per ADR-001 Amendment: on each bean initialization, scan all declared
+ * fields for the {@code @HotSwap} annotation. For each found, resolve the
+ * initial value, create an immutable {@link FieldBinding}, and register it
+ * in the reverse index.</p>
  *
  * @since 1.0.0
  */
@@ -26,14 +28,10 @@ public class HotSwapBeanPostProcessor implements BeanPostProcessor {
     private static final Logger log = LoggerFactory.getLogger(HotSwapBeanPostProcessor.class);
 
     private final HotSwapRegistry registry;
-    private final ConfigSourceFactory sourceFactory;
     private final TypeCoercer typeCoercer;
 
-    public HotSwapBeanPostProcessor(HotSwapRegistry registry,
-                                     ConfigSourceFactory sourceFactory,
-                                     TypeCoercer typeCoercer) {
+    public HotSwapBeanPostProcessor(HotSwapRegistry registry, TypeCoercer typeCoercer) {
         this.registry = registry;
-        this.sourceFactory = sourceFactory;
         this.typeCoercer = typeCoercer;
     }
 
@@ -44,49 +42,36 @@ public class HotSwapBeanPostProcessor implements BeanPostProcessor {
         ReflectionUtils.doWithFields(targetClass, field -> {
             HotSwap annotation = field.getAnnotation(HotSwap.class);
             if (annotation != null) {
-                processField(bean, beanName, field, annotation);
+                processField(bean, field, annotation);
             }
         });
 
         return bean;
     }
 
-    private void processField(Object bean, String beanName, Field field, HotSwap annotation) {
+    private void processField(Object bean, Field field, HotSwap annotation) {
         try {
             field.setAccessible(true);
 
-            // Validate poll interval
-            if (annotation.pollInterval() != -1 && annotation.pollInterval() < 500) {
-                log.warn("@HotSwap field {}.{}: pollInterval {}ms is below minimum (500ms), using 500ms",
-                        bean.getClass().getSimpleName(), field.getName(), annotation.pollInterval());
-            }
-
-            // Resolve or create the ConfigSource for this source URI
-            String sourceUri = annotation.source();
-            ConfigSource configSource = registry.getConfigSource(sourceUri);
-            if (configSource == null) {
-                configSource = sourceFactory.create(sourceUri);
-                if (configSource != null) {
-                    registry.registerSource(sourceUri, configSource);
-                } else {
-                    log.warn("No ConfigSource available for URI '{}' — field {}.{} will use default value",
-                            sourceUri, bean.getClass().getSimpleName(), field.getName());
-                }
-            }
-
-            // Resolve initial value
-            Object initialValue = resolveInitialValue(field, annotation, configSource);
+            // Resolve initial value from field's Java initializer or defaultValue
+            Object initialValue = resolveInitialValue(bean, field, annotation);
 
             // Write initial value to the field
             field.set(bean, initialValue);
 
-            // Create and register the field holder
-            HotSwapFieldHolder holder = new HotSwapFieldHolder(bean, field, annotation, initialValue);
-            registry.register(holder);
+            // Create immutable FieldBinding for the reverse index
+            FieldBinding binding = new FieldBinding(
+                    bean,
+                    bean.getClass().getName(),
+                    field.getName(),
+                    new AtomicReference<>(initialValue),
+                    field.getType(),
+                    annotation.key(),
+                    annotation.source(),
+                    annotation.sensitive()
+            );
 
-            log.debug("Processed @HotSwap field: {}.{} key='{}' initialValue={}",
-                    bean.getClass().getSimpleName(), field.getName(),
-                    annotation.key(), initialValue);
+            registry.register(annotation.key(), binding);
 
         } catch (Exception e) {
             log.error("Failed to process @HotSwap annotation on {}.{}: {}",
@@ -95,45 +80,29 @@ public class HotSwapBeanPostProcessor implements BeanPostProcessor {
     }
 
     /**
-     * Resolve the initial value: try source first, fall back to defaultValue,
-     * then fall back to the field's existing value.
+     * Resolve the initial value: try defaultValue annotation attribute,
+     * then fall back to the field's existing Java initializer value.
      */
-    private Object resolveInitialValue(Field field, HotSwap annotation, ConfigSource configSource) {
-        // Try resolving from source
-        if (configSource != null) {
-            try {
-                String rawValue = configSource.resolve(annotation.key());
-                if (rawValue != null) {
-                    return typeCoercer.coerce(rawValue, annotation.type(), field);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to resolve initial value for key '{}' from source '{}': {}",
-                        annotation.key(), annotation.source(), e.getMessage());
-            }
-        }
-
-        // Try defaultValue
+    private Object resolveInitialValue(Object bean, Field field, HotSwap annotation) {
+        // Try defaultValue from annotation
         String defaultValue = annotation.defaultValue();
         if (defaultValue != null && !defaultValue.isEmpty()) {
             try {
-                return typeCoercer.coerce(defaultValue, annotation.type(), field);
+                return typeCoercer.coerce(defaultValue, field.getType());
             } catch (Exception e) {
                 log.warn("Failed to coerce defaultValue '{}' for key '{}': {}",
                         defaultValue, annotation.key(), e.getMessage());
             }
         }
 
-        // Fall back to the field's existing value (the Java initializer value)
+        // Fall back to the field's existing value (Java initializer)
         try {
-            return field.get(null); // Will fail for instance fields
+            return field.get(bean);
         } catch (Exception e) {
             return getTypeDefault(field.getType());
         }
     }
 
-    /**
-     * Get the JVM default value for a primitive type.
-     */
     private Object getTypeDefault(Class<?> type) {
         if (type == boolean.class) return false;
         if (type == int.class) return 0;
