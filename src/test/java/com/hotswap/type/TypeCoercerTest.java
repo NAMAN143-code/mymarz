@@ -145,6 +145,53 @@ class TypeCoercerTest {
         assertThat(coercer.coerce("hello", HotSwapType.INFERRED, getField("stringField"))).isEqualTo("hello");
     }
 
+    // --- Class-based coercion (used by HotSwapRegistry.onSourceChange) ---
+
+    @Test
+    void coerceByClass_boolean() {
+        assertThat(coercer.coerce("true", boolean.class)).isEqualTo(true);
+        assertThat(coercer.coerce("false", Boolean.class)).isEqualTo(false);
+        assertThat(coercer.coerce("yes", boolean.class)).isEqualTo(true);
+    }
+
+    @Test
+    void coerceByClass_string() {
+        assertThat(coercer.coerce("hello", String.class)).isEqualTo("hello");
+    }
+
+    @Test
+    void coerceByClass_int() {
+        assertThat(coercer.coerce("42", int.class)).isEqualTo(42);
+        assertThat(coercer.coerce(" 100 ", Integer.class)).isEqualTo(100);
+    }
+
+    @Test
+    void coerceByClass_long() {
+        assertThat(coercer.coerce("9999999999", long.class)).isEqualTo(9999999999L);
+    }
+
+    @Test
+    void coerceByClass_double() {
+        assertThat(coercer.coerce("3.14", double.class)).isEqualTo(3.14);
+    }
+
+    @Test
+    void coerceByClass_null() {
+        assertThat(coercer.coerce(null, String.class)).isNull();
+    }
+
+    @Test
+    void coerceByClass_invalidBoolean_throws() {
+        assertThatThrownBy(() -> coercer.coerce("maybe", boolean.class))
+                .isInstanceOf(HotSwapTypeException.class);
+    }
+
+    @Test
+    void coerceByClass_invalidInt_throws() {
+        assertThatThrownBy(() -> coercer.coerce("abc", int.class))
+                .isInstanceOf(HotSwapTypeException.class);
+    }
+
     private Field getField(String name) throws NoSuchFieldException {
         return TypeCoercerTest.class.getDeclaredField(name);
     }
