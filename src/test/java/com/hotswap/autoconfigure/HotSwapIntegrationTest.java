@@ -61,11 +61,11 @@ class HotSwapIntegrationTest {
         void initialValues() {
             var checkoutBindings = registry.getBindings("feature.checkout.enabled");
             assertThat(checkoutBindings).hasSize(1);
-            assertThat(checkoutBindings.getFirst().ref().get()).isEqualTo(true);
+            assertThat(checkoutBindings.get(0).ref().get()).isEqualTo(true);
 
             var rateBindings = registry.getBindings("rate.limit.max");
             assertThat(rateBindings).hasSize(1);
-            assertThat(rateBindings.getFirst().ref().get()).isEqualTo(100);
+            assertThat(rateBindings.get(0).ref().get()).isEqualTo(100);
         }
     }
 }
