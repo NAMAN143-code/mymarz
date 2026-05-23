@@ -18,7 +18,8 @@ import java.util.concurrent.*;
  * Config source backed by an HTTP(S) endpoint (Mode C).
  *
  * <p>Polls using conditional GET with {@code If-None-Match} (ETag).
- * Circuit breaker after 5 consecutive failures with exponential backoff.</p>
+ * Circuit breaker with {@code nextRetryTime} timestamp pattern for
+ * clean exponential backoff.</p>
  *
  * @since 1.0.0
  */
@@ -38,9 +39,10 @@ public class HttpConfigSource implements ConfigSource {
     private final long pollIntervalSeconds;
     private final HttpClient httpClient;
 
-    private volatile Map<String, String> cachedState = new ConcurrentHashMap<>();
+    private volatile Map<String, String> cachedState = Map.of();
     private volatile String lastEtag;
     private volatile int consecutiveFailures = 0;
+    private volatile long nextRetryTime = 0;
     private volatile boolean running = false;
 
     private ScheduledExecutorService scheduler;
@@ -63,6 +65,7 @@ public class HttpConfigSource implements ConfigSource {
     @Override public String sourceId() { return uri; }
     @Override public String scheme() { return endpoint.getScheme(); }
 
+    @Override
     public void start() {
         if (running) return;
         running = true;
@@ -75,6 +78,7 @@ public class HttpConfigSource implements ConfigSource {
         log.info("HttpConfigSource started: polling {} every {}s", uri, pollIntervalSeconds);
     }
 
+    @Override
     public void stop() {
         running = false;
         if (scheduler != null && !scheduler.isShutdown()) {
@@ -89,14 +93,16 @@ public class HttpConfigSource implements ConfigSource {
         log.info("HttpConfigSource stopped: {}", uri);
     }
 
+    @Override
     public boolean isRunning() { return running; }
 
     void poll() {
+        // Circuit breaker: skip if we're in backoff period
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-            long backoff = calculateBackoff(consecutiveFailures);
-            long ticksSinceFailure = consecutiveFailures - MAX_CONSECUTIVE_FAILURES;
-            long backoffTicks = backoff / (pollIntervalSeconds * 1000);
-            if (ticksSinceFailure % Math.max(1, backoffTicks) != 0) return;
+            if (System.currentTimeMillis() < nextRetryTime) {
+                return; // Still in backoff — skip this tick
+            }
+            log.debug("Circuit breaker retry for {} (failure #{})", uri, consecutiveFailures);
         }
 
         try {
@@ -106,36 +112,54 @@ public class HttpConfigSource implements ConfigSource {
             HttpResponse<String> response = httpClient.send(rb.build(), HttpResponse.BodyHandlers.ofString());
             int status = response.statusCode();
 
-            if (status == 304) { consecutiveFailures = 0; return; }
+            if (status == 304) { resetFailures(); return; }
 
             if (status == 200) {
                 response.headers().firstValue("ETag").ifPresent(etag -> lastEtag = etag);
                 Map<String, String> newState = parser.parse(response.body(), uri);
                 Map<String, String> changedKeys = FileConfigSource.diff(cachedState, newState);
-                cachedState = new ConcurrentHashMap<>(newState);
+                cachedState = Map.copyOf(newState);
                 if (!changedKeys.isEmpty()) {
                     log.debug("HTTP poll detected {} changed key(s) from {}", changedKeys.size(), uri);
                     registry.onSourceChange(sourceId(), changedKeys);
                 }
-                consecutiveFailures = 0;
+                resetFailures();
                 return;
             }
 
-            consecutiveFailures++;
+            recordFailure();
             log.warn("HTTP {} from {} (failure #{}/{})", status, uri, consecutiveFailures, MAX_CONSECUTIVE_FAILURES);
         } catch (IOException e) {
-            consecutiveFailures++;
+            recordFailure();
             log.warn("HTTP error polling {}: {} (failure #{}/{})", uri, e.getMessage(), consecutiveFailures, MAX_CONSECUTIVE_FAILURES);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            consecutiveFailures++;
+            recordFailure();
             log.error("Unexpected error polling {}: {}", uri, e.getMessage(), e);
         }
     }
 
+    private void resetFailures() {
+        consecutiveFailures = 0;
+        nextRetryTime = 0;
+    }
+
+    private void recordFailure() {
+        consecutiveFailures++;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            long backoff = calculateBackoff(consecutiveFailures);
+            nextRetryTime = System.currentTimeMillis() + backoff;
+            log.debug("Circuit breaker: next retry for {} at +{}ms", uri, backoff);
+        }
+    }
+
+    /**
+     * Exponential backoff: 5s, 10s, 20s, 40s, capped at 60s.
+     */
     long calculateBackoff(int failures) {
-        long backoff = (pollIntervalSeconds * 1000) * (long) Math.pow(2, Math.min(failures - MAX_CONSECUTIVE_FAILURES, 10));
+        int exponent = Math.min(failures - MAX_CONSECUTIVE_FAILURES, 10);
+        long backoff = (pollIntervalSeconds * 1000) * (1L << exponent);
         return Math.min(backoff, MAX_BACKOFF_MS);
     }
 
@@ -146,7 +170,7 @@ public class HttpConfigSource implements ConfigSource {
                     HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 response.headers().firstValue("ETag").ifPresent(etag -> lastEtag = etag);
-                cachedState = new ConcurrentHashMap<>(parser.parse(response.body(), uri));
+                cachedState = Map.copyOf(parser.parse(response.body(), uri));
             }
         } catch (Exception e) {
             log.warn("HttpConfigSource initial load failed for {}: {}", uri, e.getMessage());
@@ -154,6 +178,7 @@ public class HttpConfigSource implements ConfigSource {
     }
 
     int getConsecutiveFailures() { return consecutiveFailures; }
-    Map<String, String> getCachedState() { return Map.copyOf(cachedState); }
+    long getNextRetryTime() { return nextRetryTime; }
+    Map<String, String> getCachedState() { return cachedState; }
     String getLastEtag() { return lastEtag; }
 }
