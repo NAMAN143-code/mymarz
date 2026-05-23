@@ -323,7 +323,7 @@ class HotSwapRegistryTest {
 
     /** Bean with final field — should be rejected. */
     static class FinalFieldBean {
-        final volatile boolean enabled = false;
+        final boolean enabled = false;
     }
 
     // ═══════════════════════════════════════════════════════════════════
