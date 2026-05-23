@@ -144,7 +144,7 @@ public class HotSwapRegistry {
                     }
 
                     HotSwapEvent event = new HotSwapEvent(
-                            binding.bean(), key, oldValue, coerced, sourceId);
+                            binding.bean(), key, oldValue, coerced, sourceId, binding.sensitive());
                     eventPublisher.publishEvent(event);
                 }
             }
