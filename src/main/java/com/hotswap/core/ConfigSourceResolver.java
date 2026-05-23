@@ -37,7 +37,19 @@ public class ConfigSourceResolver {
     }
 
     public ConfigSource resolve(String sourceUri) {
-        return sources.computeIfAbsent(sourceUri, this::createSource);
+        if (sourceUri == null || sourceUri.isEmpty()) {
+            return null;
+        }
+        // Don't cache null results (platform, unsupported schemes)
+        ConfigSource cached = sources.get(sourceUri);
+        if (cached != null) {
+            return cached;
+        }
+        ConfigSource created = createSource(sourceUri);
+        if (created != null) {
+            sources.put(sourceUri, created);
+        }
+        return created;
     }
 
     public void startAll() {
@@ -65,7 +77,11 @@ public class ConfigSourceResolver {
         return switch (scheme) {
             case "file", "classpath" -> createFileSource(uri);
             case "http", "https" -> createHttpSource(uri);
-            case "platform" -> { log.debug("Platform source — deferred to agent"); yield null; }
+            case "platform" -> {
+                log.warn("Platform source '{}' not available — platform agent not connected. "
+                        + "Set an explicit source (e.g., source=\"file:///config.yml\") or connect to HotSwap Platform.", uri);
+                yield null;
+            }
             default -> { log.warn("Unsupported source scheme '{}': {}", scheme, uri); yield null; }
         };
     }
