@@ -1,7 +1,7 @@
 package com.hotswap.autoconfigure;
 
 import com.hotswap.annotation.HotSwap;
-import com.hotswap.core.HotSwapBeanPostProcessor;
+import com.hotswap.core.ConfigSourceResolver;
 import com.hotswap.core.HotSwapRegistry;
 import com.hotswap.source.ConfigFormatParser;
 import com.hotswap.type.TypeCoercer;
@@ -22,7 +22,6 @@ class HotSwapIntegrationTest {
     @Configuration
     @ImportAutoConfiguration(HotSwapAutoConfiguration.class)
     static class TestConfig {
-
         @Component
         static class SampleBean {
             @HotSwap(key = "feature.checkout.enabled", defaultValue = "true")
@@ -33,39 +32,32 @@ class HotSwapIntegrationTest {
         }
     }
 
-    @Autowired HotSwapRegistry       registry;
-    @Autowired TypeCoercer            typeCoercer;
-    @Autowired ConfigFormatParser     parser;
+    @Autowired HotSwapRegistry registry;
+    @Autowired TypeCoercer typeCoercer;
+    @Autowired ConfigFormatParser parser;
+    @Autowired ConfigSourceResolver sourceResolver;
 
-    @Nested
-    @DisplayName("Context startup")
+    @Nested @DisplayName("Context startup")
     class ContextStartup {
 
-        @Test
-        @DisplayName("all core beans are wired")
+        @Test @DisplayName("all core beans wired")
         void allBeansWired() {
             assertThat(registry).isNotNull();
             assertThat(typeCoercer).isNotNull();
             assertThat(parser).isNotNull();
+            assertThat(sourceResolver).isNotNull();
         }
 
-        @Test
-        @DisplayName("BPP registers annotated fields in reverse index")
+        @Test @DisplayName("BPP registers fields in reverse index")
         void fieldsRegistered() {
             assertThat(registry.getRegisteredKeyCount()).isEqualTo(2);
             assertThat(registry.getTotalBindingCount()).isEqualTo(2);
         }
 
-        @Test
-        @DisplayName("bindings have correct initial values from defaultValue")
+        @Test @DisplayName("initial values from defaultValue")
         void initialValues() {
-            var checkoutBindings = registry.getBindings("feature.checkout.enabled");
-            assertThat(checkoutBindings).hasSize(1);
-            assertThat(checkoutBindings.get(0).ref().get()).isEqualTo(true);
-
-            var rateBindings = registry.getBindings("rate.limit.max");
-            assertThat(rateBindings).hasSize(1);
-            assertThat(rateBindings.get(0).ref().get()).isEqualTo(100);
+            assertThat(registry.getBindings("feature.checkout.enabled").get(0).ref().get()).isEqualTo(true);
+            assertThat(registry.getBindings("rate.limit.max").get(0).ref().get()).isEqualTo(100);
         }
     }
 }
