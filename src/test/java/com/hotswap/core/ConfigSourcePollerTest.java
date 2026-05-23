@@ -8,7 +8,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -142,15 +144,29 @@ class ConfigSourcePollerTest {
 
     private HotSwapFieldHolder createHolder(String key, String source, long pollInterval) throws Exception {
         Field field = ConfigSourcePollerTest.class.getDeclaredField("testField");
-        HotSwap annotation = mock(HotSwap.class);
-        when(annotation.key()).thenReturn(key);
-        when(annotation.source()).thenReturn(source);
-        when(annotation.pollInterval()).thenReturn(pollInterval);
-        when(annotation.defaultValue()).thenReturn("");
-        when(annotation.type()).thenReturn(HotSwapType.INFERRED);
-        when(annotation.description()).thenReturn("");
-        when(annotation.requiresApproval()).thenReturn(false);
-
+        HotSwap annotation = createHotSwapAnnotation(key, source, pollInterval, "", HotSwapType.INFERRED, "", false);
         return new HotSwapFieldHolder(this, field, annotation, false);
+    }
+
+    private static HotSwap createHotSwapAnnotation(String key, String source, long pollInterval,
+                                                    String defaultValue, HotSwapType type,
+                                                    String description, boolean requiresApproval) {
+        return (HotSwap) Proxy.newProxyInstance(
+                HotSwap.class.getClassLoader(),
+                new Class<?>[]{HotSwap.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "key" -> key;
+                    case "source" -> source;
+                    case "pollInterval" -> pollInterval;
+                    case "defaultValue" -> defaultValue;
+                    case "type" -> type;
+                    case "description" -> description;
+                    case "requiresApproval" -> requiresApproval;
+                    case "annotationType" -> HotSwap.class;
+                    case "toString" -> "@HotSwap(key=" + key + ")";
+                    case "hashCode" -> key.hashCode();
+                    case "equals" -> proxy == args[0];
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
     }
 }
