@@ -96,4 +96,13 @@ public @interface HotSwap {
      * @return true if approval is required (default: false)
      */
     boolean requiresApproval() default false;
+
+    /**
+     * Whether this config value is sensitive (e.g., secrets, tokens, PII).
+     * When {@code true}, values are masked as {@code ***} in all log output,
+     * {@link com.hotswap.core.HotSwapEvent#toString()}, and heartbeat reports.
+     *
+     * @return true if value should be masked in logs (default: false)
+     */
+    boolean sensitive() default false;
 }

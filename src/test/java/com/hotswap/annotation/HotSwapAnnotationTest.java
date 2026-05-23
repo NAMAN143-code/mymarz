@@ -24,6 +24,10 @@ class HotSwapAnnotationTest {
     @SuppressWarnings("unused")
     private int fullField = 0;
 
+    @HotSwap(key = "api.secret.key", sensitive = true)
+    @SuppressWarnings("unused")
+    private String sensitiveField = "";
+
     @Test
     void minimalAnnotation_hasDefaults() throws Exception {
         Field field = getClass().getDeclaredField("minimalField");
@@ -37,6 +41,7 @@ class HotSwapAnnotationTest {
         assertThat(annotation.type()).isEqualTo(HotSwapType.INFERRED);
         assertThat(annotation.description()).isEmpty();
         assertThat(annotation.requiresApproval()).isFalse();
+        assertThat(annotation.sensitive()).isFalse();
     }
 
     @Test
@@ -64,5 +69,15 @@ class HotSwapAnnotationTest {
     void annotation_targetsFields() {
         assertThat(HotSwap.class.getAnnotation(java.lang.annotation.Target.class).value())
                 .containsExactly(java.lang.annotation.ElementType.FIELD);
+    }
+
+    @Test
+    void sensitiveAnnotation_masksValue() throws Exception {
+        Field field = getClass().getDeclaredField("sensitiveField");
+        HotSwap annotation = field.getAnnotation(HotSwap.class);
+
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.key()).isEqualTo("api.secret.key");
+        assertThat(annotation.sensitive()).isTrue();
     }
 }

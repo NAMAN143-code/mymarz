@@ -30,6 +30,47 @@ public class TypeCoercer {
     }
 
     /**
+     * Coerce a raw string value to the target type using the Class directly.
+     * Used by {@link com.hotswap.core.HotSwapRegistry#onSourceChange} where
+     * only the target Class is available (from FieldBinding record).
+     *
+     * @param rawValue   the raw string from the config source
+     * @param targetType the target Java class
+     * @return the coerced value
+     * @throws HotSwapTypeException if coercion fails
+     */
+    public Object coerce(String rawValue, Class<?> targetType) {
+        if (rawValue == null) {
+            return null;
+        }
+
+        try {
+            if (targetType == boolean.class || targetType == Boolean.class) {
+                return parseBoolean(rawValue);
+            }
+            if (targetType == String.class) {
+                return rawValue;
+            }
+            if (targetType == int.class || targetType == Integer.class) {
+                return Integer.parseInt(rawValue.trim());
+            }
+            if (targetType == long.class || targetType == Long.class) {
+                return Long.parseLong(rawValue.trim());
+            }
+            if (targetType == double.class || targetType == Double.class) {
+                return Double.parseDouble(rawValue.trim());
+            }
+            // Complex types — JSON deserialization
+            return objectMapper.readValue(rawValue, targetType);
+        } catch (HotSwapTypeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new HotSwapTypeException(
+                    "Failed to coerce value '" + rawValue + "' to " + targetType.getSimpleName(), e);
+        }
+    }
+
+    /**
      * Coerce a raw string value to the target type.
      *
      * @param rawValue the raw string from the config source
