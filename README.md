@@ -1,33 +1,26 @@
-# HotSwap 🔥
+# HotSwap
 
-**Runtime configuration hot-swap for Spring Boot** — change feature flags, toggles, and config values without restarting your JVM.
-
-[![CI](https://github.com/NAMAN143-code/hswap/actions/workflows/ci.yml/badge.svg)](https://github.com/NAMAN143-code/hswap/actions/workflows/ci.yml)
+[![Build](https://github.com/NAMAN143-code/hswap/actions/workflows/ci.yml/badge.svg)](https://github.com/NAMAN143-code/hswap/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://openjdk.org/)
+[![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://openjdk.org/projects/jdk/17/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green.svg)](https://spring.io/projects/spring-boot)
 
-## What is HotSwap?
+**Runtime configuration management for Java — change config values without restarting your application.**
 
-HotSwap is a Spring Boot annotation that polls an external config source and updates variable state **in the running JVM**. The next time your code reads the variable, it sees the new value. No restart. No redeployment. No downtime.
+HotSwap is a Spring annotation library that enables true JVM-level hot-swapping of configuration values. Annotate a field with `@HotSwap`, point it at a config file, and the value updates in memory the instant the file changes. No restart. No refresh endpoint. No SDK calls. Just an annotation.
 
-```java
-@Service
-public class CheckoutService {
+## How It's Different
 
-    @HotSwap(key = "feature.new-checkout.enabled")
-    private boolean newCheckoutEnabled = false;
+| Approach | Mechanism | Restart Required? | Granularity |
+|----------|-----------|-------------------|-------------|
+| Spring `@RefreshScope` | Recreates entire bean | Actuator `/refresh` call | Bean-level |
+| LaunchDarkly / Unleash | SDK method calls | No | Per-evaluation |
+| Spring Cloud Config | Properties reload | Yes (or actuator) | Application-level |
+| **HotSwap** | **`AtomicReference` swap via OS file events** | **No** | **Field-level** |
 
-    @HotSwap(key = "rate.limit.max-requests", source = "file:///etc/myapp/config.yml")
-    private int maxRequests = 100;
+HotSwap uses OS-level file change detection (`WatchService` — inotify on Linux, kqueue on macOS) combined with a reverse index that maps config keys directly to in-memory `AtomicReference` locations. When a config file changes, only the specific fields bound to changed keys are updated. Everything else is untouched.
 
-    public void processOrder(Order order) {
-        if (newCheckoutEnabled) {
-            // New checkout flow — toggled at runtime!
-        }
-    }
-}
-```
+**Read path cost:** ~5ns (volatile read). Zero IO. Zero network calls.
 
 ## Quick Start (5 minutes)
 
@@ -56,52 +49,142 @@ rate:
 ### 3. Annotate your fields
 
 ```java
-@HotSwap(key = "feature.new-checkout.enabled", source = "file://config/hotswap.yml")
-private boolean newCheckoutEnabled = false;
+@Service
+public class CheckoutService {
+
+    @HotSwap(key = "feature.new-checkout.enabled", source = "file://config/hotswap.yml")
+    private boolean newCheckoutEnabled = false;
+
+    @HotSwap(key = "rate.limit.max-requests", source = "file://config/hotswap.yml")
+    private int maxRequests = 100;
+
+    public void processOrder(Order order) {
+        if (newCheckoutEnabled) {
+            // new checkout flow — toggle this by editing the YAML
+        }
+    }
+}
 ```
 
 ### 4. Run your app and change the YAML
 
-Edit `config/hotswap.yml` while your app is running. Within 5 seconds (default poll interval), the field value updates. No restart needed.
+Edit `config/hotswap.yml` while your app is running. The field value updates within milliseconds — no restart, no refresh endpoint, no downtime.
 
-## Supported Config Sources
+## Architecture: Event-Driven Targeted Swap
+
+HotSwap does **not** poll your config files on a timer. Instead:
+
+```
+Config File Changes
+        │
+        ▼
+WatchService (OS kernel: inotify/kqueue)
+        │  ← BLOCKS until file actually changes. Zero CPU when idle.
+        ▼
+Read file → Diff against cached state
+        │
+        ▼
+Reverse Index lookup (key → List<FieldBinding>)
+        │  ← Only changed keys are looked up. O(1).
+        ▼
+AtomicReference.set(newValue)
+        │  ← Only affected fields are touched.
+        ▼
+HotSwapEvent published (Spring ApplicationEvent)
+```
+
+If your YAML has 200 keys and you change 1, only that 1 key's bound fields are swapped. The other 199 are never read, parsed, or touched.
+
+### IO Profile
+
+| Scenario | IO | CPU |
+|----------|-----|-----|
+| File source, nothing changes | **Zero** | **Zero** (blocked on `WatchService.take()`) |
+| File source, 1 key changes | 1 file read (~0.1ms) | ~0.5ms |
+| App reads `@HotSwap` field | **Zero** | **~5ns** (volatile read) |
+
+### Tiered Source Resolution
+
+HotSwap automatically selects the best change detection strategy for your environment:
+
+| Mode | Detection | When |
+|------|-----------|------|
+| **A: WatchService** | OS inotify/kqueue | Local files, Docker volumes, K8s ConfigMaps |
+| **B: Platform Push** | WebSocket | `source="platform://hotswap"` (commercial) |
+| **C: Platform Promoted** | WebSocket (upgraded) | NFS/network FS + platform connected |
+| **D: CRC32 Poll** | Periodic checksum | Last resort (no WatchService, no platform) |
+
+No configuration needed — `SourceStrategyResolver` probes the filesystem at startup and picks the optimal mode.
+
+## Annotation Reference
+
+```java
+@HotSwap(
+    key = "feature.dark-mode.enabled",     // Required: config key to resolve
+    source = "file://config/hotswap.yml",  // Config source URI (default: platform://hotswap)
+    pollInterval = 5000,                   // Safety-net poll interval in ms (default: 5000)
+    defaultValue = "false",                // Fallback when source is unreachable
+    type = HotSwapType.INFERRED,           // Type coercion (auto-detected from field)
+    description = "Enable dark mode",      // Human-readable label for dashboard
+    requiresApproval = false,              // Require approval workflow via platform
+    sensitive = false                      // Mask value in logs and dashboard
+)
+private boolean darkModeEnabled;
+```
+
+### Supported Types
+
+`boolean`, `String`, `int`, `long`, `double`, and JSON objects (deserialized via Jackson).
+
+### Supported Config Sources
 
 | Source | URI Scheme | Example |
 |--------|-----------|---------|
-| Local file | `file://` | `file:///etc/app/config.yml` |
+| Local file (YAML) | `file://` | `file:///etc/app/config.yml` |
+| Local file (JSON) | `file://` | `file://config/flags.json` |
+| Local file (Properties) | `file://` | `file://config/app.properties` |
 | Classpath | `classpath:` | `classpath:config.properties` |
 | HTTP endpoint | `http://` / `https://` | `https://config-server/api/v1/config` |
-| HotSwap Platform | `platform://hotswap` | (default — connects to commercial SaaS) |
+| HotSwap Platform | `platform://hotswap` | Connects to commercial SaaS dashboard |
 
-## Supported Types
-
-`boolean`, `String`, `int`, `long`, `double`, and JSON (deserialized via Jackson).
-
-## How It Works
-
-1. Spring `BeanPostProcessor` scans for `@HotSwap` annotations at startup
-2. Each field is backed by a thread-safe `AtomicReference`
-3. A `ScheduledExecutorService` polls the config source at the configured interval
-4. When a value changes, the `AtomicReference` is updated atomically
-5. A `HotSwapEvent` is published via Spring's event system
+## Listening for Changes
 
 ```java
 @EventListener
 public void onConfigChange(HotSwapEvent event) {
-    log.info("Config changed: {} -> {} -> {}", event.getKey(), event.getOldValue(), event.getNewValue());
+    log.info("{}: {} → {}", event.getKey(), event.getOldValue(), event.getNewValue());
 }
 ```
+
+`HotSwapEvent` fires **after** the `AtomicReference` is updated, so listeners always see the new state.
 
 ## Configuration
 
 ```yaml
 # application.yml
 hotswap:
-  enabled: true
-  default-poll-interval: 5000
-  thread-pool-size: 2
-  metrics-enabled: true
+  enabled: true                    # Master switch (default: true)
+  default-poll-interval: 5000      # Safety-net poll interval in ms
+  thread-pool-size: 2              # WatchService thread pool size
+  metrics-enabled: true            # Expose Micrometer metrics
 ```
+
+## Thread Safety
+
+Every `@HotSwap` field is backed by an `AtomicReference`. Reads are lock-free volatile reads (~5ns). Writes use `compareAndSet` for safe concurrent updates. No `synchronized` blocks, no locks, no contention.
+
+## Core Components
+
+| Component | Responsibility |
+|-----------|---------------|
+| `@HotSwap` | Field-level annotation declaring config binding |
+| `HotSwapRegistry` | Reverse index: config key → `List<FieldBinding>` |
+| `FieldBinding` | Immutable record: bean + `AtomicReference` + type + key + source |
+| `FileConfigSource` | WatchService-based file change detection + diff |
+| `TypeCoercer` | String → target type conversion with validation |
+| `HotSwapBeanPostProcessor` | Spring lifecycle hook that scans and registers fields |
+| `HotSwapAutoConfiguration` | Spring Boot auto-configuration entry point |
+| `ConfigFormatParser` | SPI for YAML, JSON, and properties file parsing |
 
 ## Requirements
 
@@ -117,6 +200,12 @@ cd hswap
 mvn clean install
 ```
 
+## Project Status
+
+The open-source annotation library is implemented and functional. A commercial SaaS platform (web dashboard, RBAC, audit logging, multi-instance management) is in development.
+
+**Architecture documentation:** [Confluence — Software Development space](https://n-solution.atlassian.net/wiki/spaces/SD/overview)
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -125,6 +214,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 [Apache License 2.0](LICENSE)
 
-## About
+---
 
 Built by [Naman Sharma](https://github.com/NAMAN143-code) for Java teams who are tired of restarting apps to change a config value.
