@@ -39,8 +39,10 @@ public class HotSwapAutoConfiguration {
 
     @Bean @ConditionalOnMissingBean
     public ConfigSourceResolver configSourceResolver(ConfigFormatParser parser, HotSwapRegistry registry,
-                                                      SourceStrategyResolver strategyResolver) {
-        return new ConfigSourceResolver(parser, registry, strategyResolver);
+                                                      SourceStrategyResolver strategyResolver,
+                                                      HotSwapProperties properties) {
+        return new ConfigSourceResolver(parser, registry, strategyResolver,
+                properties.getDefaultSource(), properties.getDefaultPollIntervalMs());
     }
 
     @Bean

@@ -13,7 +13,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * hotswap:
  *   enabled: true
  *   default-poll-interval-ms: 5000
- *   thread-pool-size: 2
  *   default-source: file:///etc/myapp/config.yml
  * </pre>
  *
@@ -22,27 +21,22 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "hotswap")
 public class HotSwapProperties {
 
-    /** Master switch — set to false to disable all HotSwap processing. */
+    /** Master switch — set to {@code false} to disable all HotSwap processing. */
     private boolean enabled = true;
 
     /**
-     * Default poll interval in milliseconds for fields that do not specify one.
-     * Minimum: 500ms.
+     * Default poll interval in milliseconds for HTTP config sources
+     * that do not specify their own interval. Minimum enforced: 500ms.
      */
     private long defaultPollIntervalMs = 5000L;
 
     /**
-     * Thread pool size for the polling scheduler.
-     * Defaults to {@code 0}, which lets the poller auto-size based on
-     * {@code min(sourceCount, availableProcessors)}.
-     */
-    private int threadPoolSize = 0;
-
-    /**
      * Default source URI used when a {@code @HotSwap} annotation does not
      * specify a source (i.e., source is the default {@code platform://hotswap}).
-     * If null, platform-sourced fields remain unresolved until the platform
-     * agent connects.
+     *
+     * <p>Set this to a file or HTTP URI to enable source-based initial value
+     * resolution before the platform agent connects. Example:
+     * {@code file:///etc/myapp/config.yml}</p>
      */
     private String defaultSource;
 
@@ -50,17 +44,26 @@ public class HotSwapProperties {
     // Getters / Setters
     // -------------------------------------------------------------------------
 
+    /** @return whether HotSwap processing is enabled */
     public boolean isEnabled() { return enabled; }
+
+    /** @param enabled {@code false} to disable all HotSwap processing */
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
 
+    /** @return default poll interval in milliseconds (minimum 500ms) */
     public long getDefaultPollIntervalMs() { return defaultPollIntervalMs; }
+
+    /**
+     * Set the default poll interval. Values below 500ms are clamped to 500ms.
+     * @param defaultPollIntervalMs poll interval in milliseconds
+     */
     public void setDefaultPollIntervalMs(long defaultPollIntervalMs) {
-        this.defaultPollIntervalMs = defaultPollIntervalMs;
+        this.defaultPollIntervalMs = Math.max(500L, defaultPollIntervalMs);
     }
 
-    public int getThreadPoolSize() { return threadPoolSize; }
-    public void setThreadPoolSize(int threadPoolSize) { this.threadPoolSize = threadPoolSize; }
-
+    /** @return default source URI, or {@code null} if not configured */
     public String getDefaultSource() { return defaultSource; }
+
+    /** @param defaultSource fallback source URI for fields using platform://hotswap */
     public void setDefaultSource(String defaultSource) { this.defaultSource = defaultSource; }
 }

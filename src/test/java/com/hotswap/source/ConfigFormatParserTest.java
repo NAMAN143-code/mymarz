@@ -50,6 +50,29 @@ class ConfigFormatParserTest {
         }
 
         @Test
+        @DisplayName("flattens YAML lists to indexed keys")
+        void parseYamlWithLists() {
+            String content = "servers:\n  - alpha\n  - beta\n  - gamma\n";
+            Map<String, String> result = parser.parse(content, "config.yml");
+            assertThat(result)
+                    .containsEntry("servers.0", "alpha")
+                    .containsEntry("servers.1", "beta")
+                    .containsEntry("servers.2", "gamma");
+        }
+
+        @Test
+        @DisplayName("flattens nested maps inside YAML lists")
+        void parseYamlWithNestedMapsInLists() {
+            String content = "databases:\n  - host: db1.example.com\n    port: 5432\n  - host: db2.example.com\n    port: 5433\n";
+            Map<String, String> result = parser.parse(content, "config.yml");
+            assertThat(result)
+                    .containsEntry("databases.0.host", "db1.example.com")
+                    .containsEntry("databases.0.port", "5432")
+                    .containsEntry("databases.1.host", "db2.example.com")
+                    .containsEntry("databases.1.port", "5433");
+        }
+
+        @Test
         @DisplayName("returns empty map for empty YAML")
         void parseEmptyYaml() {
             assertThat(parser.parse("", "config.yml")).isEmpty();

@@ -97,8 +97,24 @@ public class ConfigFormatParser {
             Object value = entry.getValue();
             if (value instanceof Map) {
                 flatten(key, (Map<?, ?>) value, result);
+            } else if (value instanceof java.util.List<?> list) {
+                flattenList(key, list, result);
             } else if (value != null) {
                 result.put(key, String.valueOf(value));
+            }
+        }
+    }
+
+    private void flattenList(String prefix, java.util.List<?> list, Map<String, String> result) {
+        for (int i = 0; i < list.size(); i++) {
+            String key = prefix + "." + i;
+            Object item = list.get(i);
+            if (item instanceof Map) {
+                flatten(key, (Map<?, ?>) item, result);
+            } else if (item instanceof java.util.List<?> nested) {
+                flattenList(key, nested, result);
+            } else if (item != null) {
+                result.put(key, String.valueOf(item));
             }
         }
     }

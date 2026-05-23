@@ -83,6 +83,14 @@ public class HotSwapBeanPostProcessor implements BeanPostProcessor {
                         + " must not be final. HotSwap needs to write new values via reflection.");
             }
 
+            // ── POLL INTERVAL VALIDATION (ADR-001 §4) ──────────────────
+            long pollInterval = annotation.pollInterval();
+            if (pollInterval > 0 && pollInterval < 500) {
+                log.warn("@HotSwap field {}.{} has pollInterval={}ms which is below the 500ms minimum. "
+                        + "Clamped to 500ms to prevent polling storms.",
+                        bean.getClass().getSimpleName(), field.getName(), pollInterval);
+            }
+
             field.setAccessible(true);
             Object initialValue = resolveInitialValue(bean, field, annotation);
             field.set(bean, initialValue);
