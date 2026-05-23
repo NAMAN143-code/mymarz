@@ -358,7 +358,7 @@ public class FileConfigSource implements ConfigSource {
     /**
      * Converts a {@code file://} URI string to a {@link Path}.
      */
-    static Path resolveFilePath(String uri) {
+    public static Path resolveFilePath(String uri) {
         String path = uri;
         if (path.startsWith("file:///")) {
             path = path.substring(7);

@@ -26,7 +26,7 @@ public class HttpConfigSource implements ConfigSource {
 
     private static final Logger log = LoggerFactory.getLogger(HttpConfigSource.class);
 
-    static final long DEFAULT_POLL_INTERVAL_SECONDS = 5;
+    public static final long DEFAULT_POLL_INTERVAL_SECONDS = 5;
     static final int MAX_CONSECUTIVE_FAILURES = 5;
     static final long MAX_BACKOFF_MS = 60_000L;
     static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
