@@ -13,8 +13,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Resolves source URI strings into {@link ConfigSource} instances,
- * selecting the appropriate implementation and strategy.
+ * Resolves source URI strings into {@link ConfigSource} instances.
+ * Manages lifecycle (start/stop) for all created sources.
  *
  * @since 1.0.0
  */
@@ -27,7 +27,6 @@ public class ConfigSourceResolver {
     private final SourceStrategyResolver strategyResolver;
 
     private final Map<String, ConfigSource> sources = new ConcurrentHashMap<>();
-    private final Map<String, Startable> lifecycleSources = new ConcurrentHashMap<>();
 
     public ConfigSourceResolver(ConfigFormatParser parser, HotSwapRegistry registry,
                                  SourceStrategyResolver strategyResolver) {
@@ -37,22 +36,29 @@ public class ConfigSourceResolver {
     }
 
     public ConfigSource resolve(String sourceUri) {
-        return sources.computeIfAbsent(sourceUri, this::createSource);
+        if (sourceUri == null || sourceUri.isEmpty()) return null;
+        ConfigSource cached = sources.get(sourceUri);
+        if (cached != null) return cached;
+        ConfigSource created = createSource(sourceUri);
+        if (created != null) sources.put(sourceUri, created);
+        return created;
     }
 
+    /** Start all created sources. Called by SmartLifecycle after BPP completes. */
     public void startAll() {
         int started = 0;
-        for (var entry : lifecycleSources.entrySet()) {
-            try { entry.getValue().start(); started++; }
-            catch (Exception e) { log.error("Failed to start source '{}': {}", entry.getKey(), e.getMessage()); }
+        for (ConfigSource source : sources.values()) {
+            try { source.start(); started++; }
+            catch (Exception e) { log.error("Failed to start source '{}': {}", source.sourceId(), e.getMessage()); }
         }
         log.info("Started {} config source(s)", started);
     }
 
+    /** Stop all created sources. Called on context shutdown. */
     public void stopAll() {
-        for (var entry : lifecycleSources.entrySet()) {
-            try { entry.getValue().stop(); }
-            catch (Exception e) { log.error("Failed to stop source '{}': {}", entry.getKey(), e.getMessage()); }
+        for (ConfigSource source : sources.values()) {
+            try { source.stop(); }
+            catch (Exception e) { log.error("Failed to stop source '{}': {}", source.sourceId(), e.getMessage()); }
         }
     }
 
@@ -65,7 +71,10 @@ public class ConfigSourceResolver {
         return switch (scheme) {
             case "file", "classpath" -> createFileSource(uri);
             case "http", "https" -> createHttpSource(uri);
-            case "platform" -> { log.debug("Platform source — deferred to agent"); yield null; }
+            case "platform" -> {
+                log.warn("Platform source '{}' not available — set an explicit source or connect to HotSwap Platform.", uri);
+                yield null;
+            }
             default -> { log.warn("Unsupported source scheme '{}': {}", scheme, uri); yield null; }
         };
     }
@@ -73,22 +82,11 @@ public class ConfigSourceResolver {
     private ConfigSource createFileSource(String uri) {
         Path filePath = FileConfigSource.resolveFilePath(uri);
         SourceStrategyResolver.Strategy strategy = strategyResolver.resolveFileStrategy(filePath, false);
-        FileConfigSource source = new FileConfigSource(uri, parser, registry, strategy);
-        lifecycleSources.put(uri, new Startable() {
-            @Override public void start() { source.start(); }
-            @Override public void stop() { source.stop(); }
-        });
-        return source;
+        return new FileConfigSource(uri, parser, registry, strategy);
     }
 
     private ConfigSource createHttpSource(String uri) {
-        HttpConfigSource source = new HttpConfigSource(uri, parser, registry,
-                HttpConfigSource.DEFAULT_POLL_INTERVAL_SECONDS);
-        lifecycleSources.put(uri, new Startable() {
-            @Override public void start() { source.start(); }
-            @Override public void stop() { source.stop(); }
-        });
-        return source;
+        return new HttpConfigSource(uri, parser, registry, HttpConfigSource.DEFAULT_POLL_INTERVAL_SECONDS);
     }
 
     static String extractScheme(String uri) {
@@ -96,6 +94,4 @@ public class ConfigSourceResolver {
         int colonIndex = uri.indexOf(':');
         return colonIndex <= 0 ? uri.toLowerCase() : uri.substring(0, colonIndex).toLowerCase();
     }
-
-    interface Startable { void start(); void stop(); }
 }

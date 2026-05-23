@@ -41,7 +41,7 @@ public class FileConfigSource implements ConfigSource {
     private final HotSwapRegistry registry;
     private final SourceStrategyResolver.Strategy strategy;
 
-    private volatile Map<String, String> cachedState;
+    private volatile Map<String, String> cachedState = Map.of();
     private volatile long lastKnownChecksum;
     private volatile boolean running = false;
 
@@ -97,6 +97,7 @@ public class FileConfigSource implements ConfigSource {
     /**
      * Start the change detection mechanism based on the resolved strategy.
      */
+    @Override
     public void start() {
         if (running) return;
         running = true;
@@ -111,6 +112,7 @@ public class FileConfigSource implements ConfigSource {
     /**
      * Stop all background threads.
      */
+    @Override
     public void stop() {
         running = false;
 
@@ -133,6 +135,7 @@ public class FileConfigSource implements ConfigSource {
         log.info("FileConfigSource stopped: {}", filePath);
     }
 
+    @Override
     public boolean isRunning() {
         return running;
     }
@@ -327,7 +330,7 @@ public class FileConfigSource implements ConfigSource {
                 return Collections.emptyMap();
             }
             String content = Files.readString(filePath);
-            return new ConcurrentHashMap<>(parser.parse(content, uri));
+            return Map.copyOf(parser.parse(content, uri));
         } catch (IOException e) {
             log.error("Failed to load config file {}: {}", filePath, e.getMessage());
             return cachedState != null ? cachedState : Collections.emptyMap();
