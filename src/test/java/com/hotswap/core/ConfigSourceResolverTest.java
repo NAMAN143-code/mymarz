@@ -21,7 +21,7 @@ class ConfigSourceResolverTest {
     @BeforeEach
     void setUp() {
         HotSwapRegistry registry = new HotSwapRegistry(mock(ApplicationEventPublisher.class), new TypeCoercer());
-        resolver = new ConfigSourceResolver(new ConfigFormatParser(), registry, new SourceStrategyResolver());
+        resolver = new ConfigSourceResolver(new ConfigFormatParser(), registry, new SourceStrategyResolver(), null, 5000L);
     }
 
     @Test void extractScheme_file() { assertThat(ConfigSourceResolver.extractScheme("file:///c.yml")).isEqualTo("file"); }
