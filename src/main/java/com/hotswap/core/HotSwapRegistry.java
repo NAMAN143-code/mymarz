@@ -176,7 +176,7 @@ public class HotSwapRegistry {
         Map<String, FieldStateSnapshot> snapshot = new ConcurrentHashMap<>();
         keyToBindings.forEach((key, bindings) -> {
             if (!bindings.isEmpty()) {
-                FieldBinding first = bindings.getFirst();
+                FieldBinding first = bindings.get(0);
                 Object currentValue = first.ref().get();
                 snapshot.put(key, new FieldStateSnapshot(
                         currentValue,
