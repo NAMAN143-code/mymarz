@@ -99,6 +99,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Health Indicator (optional — only activates when actuator is on classpath) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Config Parsing -->
         <dependency>
             <groupId>org.yaml</groupId>
