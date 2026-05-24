@@ -152,8 +152,8 @@ public class ConfigSourceResolver {
     }
 
     private ConfigSource createHttpSource(String uri) {
-        long pollSeconds = safetyNetIntervalMs / 1000;
-        return new HttpConfigSource(uri, parser, registry, Math.max(1, pollSeconds));
+        long httpPollSeconds = safetyNetIntervalMs / 1000;
+        return new HttpConfigSource(uri, parser, registry, Math.max(1, httpPollSeconds));
     }
 
     static String extractScheme(String uri) {
