@@ -1,6 +1,6 @@
 # Default test application properties
 # Individual test classes override these with @TestPropertySource
-hotswap:
+marz:
   enabled: true
   default-poll-interval-ms: 5000
   thread-pool-size: 1

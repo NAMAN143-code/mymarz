@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: marz-demo
+
+server:
+  port: 8080
+
+# MARZ is enabled by default — no config needed.
+# All @Marz fields will auto-register and start watching.
+marz:
+  enabled: true
+
+logging:
+  level:
+    com.mymarz: DEBUG

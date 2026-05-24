@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug in HotSwap
+about: Report a bug in MARZ
 title: "[BUG] "
 labels: bug
 assignees: ''
@@ -11,7 +11,7 @@ A clear description of the bug.
 
 **To Reproduce**
 Steps to reproduce:
-1. Add annotation: `@HotSwap(key = "...", source = "...")`
+1. Add annotation: `@Marz(key = "...", source = "...")`
 2. Change config value to '...'
 3. Observe '...'
 
@@ -21,9 +21,9 @@ What you expected to happen.
 **Environment**
 - Java version:
 - Spring Boot version:
-- HotSwap version:
+- MARZ version:
 - OS:
 - Config source type (file/http/classpath):
 
 **Logs**
-Relevant log output (set `logging.level.com.hotswap=DEBUG`).
+Relevant log output (set `logging.level.com.mymarz=DEBUG`).
