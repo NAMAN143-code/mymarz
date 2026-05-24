@@ -1,6 +1,6 @@
 package com.mymarz.demo;
 
-import com.mymarz.annotation.MARZ;
+import com.mymarz.annotation.Marz;
 import com.mymarz.annotation.MarzType;
 import org.springframework.stereotype.Service;
 

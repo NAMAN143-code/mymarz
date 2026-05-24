@@ -1,7 +1,7 @@
 package com.mymarz.annotation;
 
 /**
- * Supported value types for {@link MARZ} annotation fields.
+ * Supported value types for {@link Marz} annotation fields.
  *
  * <p>Defines how raw String values from config sources are coerced
  * into the target field's Java type.</p>

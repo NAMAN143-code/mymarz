@@ -31,7 +31,7 @@ class MarzAnnotationTest {
     @Test
     void minimalAnnotation_hasDefaults() throws Exception {
         Field field = getClass().getDeclaredField("minimalField");
-        MARZ annotation = field.getAnnotation(MARZ.class);
+        Marz annotation = field.getAnnotation(Marz.class);
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.key()).isEqualTo("test.feature.enabled");
@@ -47,7 +47,7 @@ class MarzAnnotationTest {
     @Test
     void fullAnnotation_hasExplicitValues() throws Exception {
         Field field = getClass().getDeclaredField("fullField");
-        MARZ annotation = field.getAnnotation(MARZ.class);
+        Marz annotation = field.getAnnotation(Marz.class);
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.key()).isEqualTo("test.rate.limit");
@@ -61,20 +61,20 @@ class MarzAnnotationTest {
 
     @Test
     void annotation_isRuntimeRetention() {
-        assertThat(MARZ.class.getAnnotation(java.lang.annotation.Retention.class).value())
+        assertThat(Marz.class.getAnnotation(java.lang.annotation.Retention.class).value())
                 .isEqualTo(java.lang.annotation.RetentionPolicy.RUNTIME);
     }
 
     @Test
     void annotation_targetsFields() {
-        assertThat(MARZ.class.getAnnotation(java.lang.annotation.Target.class).value())
+        assertThat(Marz.class.getAnnotation(java.lang.annotation.Target.class).value())
                 .containsExactly(java.lang.annotation.ElementType.FIELD);
     }
 
     @Test
     void sensitiveAnnotation_masksValue() throws Exception {
         Field field = getClass().getDeclaredField("sensitiveField");
-        MARZ annotation = field.getAnnotation(MARZ.class);
+        Marz annotation = field.getAnnotation(Marz.class);
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.key()).isEqualTo("api.secret.key");

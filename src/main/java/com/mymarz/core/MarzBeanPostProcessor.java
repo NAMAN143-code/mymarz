@@ -1,6 +1,6 @@
 package com.mymarz.core;
 
-import com.mymarz.annotation.MARZ;
+import com.mymarz.annotation.Marz;
 import com.mymarz.type.TypeCoercer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,13 +48,13 @@ public class MarzBeanPostProcessor implements BeanPostProcessor {
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
         ReflectionUtils.doWithFields(bean.getClass(), field -> {
-            MARZ annotation = field.getAnnotation(MARZ.class);
+            Marz annotation = field.getAnnotation(Marz.class);
             if (annotation != null) processField(bean, field, annotation);
         });
         return bean;
     }
 
-    private void processField(Object bean, Field field, MARZ annotation) {
+    private void processField(Object bean, Field field, Marz annotation) {
         try {
             // ── VOLATILE ENFORCEMENT ──────────────────────────────────────
             // The hot-swap read path depends on volatile visibility. Without
@@ -106,7 +106,7 @@ public class MarzBeanPostProcessor implements BeanPostProcessor {
         }
     }
 
-    private Object resolveInitialValue(Object bean, Field field, MARZ annotation) {
+    private Object resolveInitialValue(Object bean, Field field, Marz annotation) {
         // 1. Config source
         if (sourceResolver != null) {
             try {

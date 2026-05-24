@@ -26,13 +26,13 @@ import java.lang.annotation.Target;
  *
  * <p>Minimal usage:</p>
  * <pre>
- * &#64;MARZ(key = "feature.dark-mode.enabled")
+ * &#64;Marz(key = "feature.dark-mode.enabled")
  * private volatile boolean darkModeEnabled = false;
  * </pre>
  *
  * <p>Full usage:</p>
  * <pre>
- * &#64;MARZ(
+ * &#64;Marz(
  *     key = "rate.limit.max-requests",
  *     source = "file:///etc/myapp/config.yml",
  *     pollInterval = 10000,
@@ -50,7 +50,7 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface MARZ {
+public @interface Marz {
 
     /**
      * The configuration key to resolve from the source.

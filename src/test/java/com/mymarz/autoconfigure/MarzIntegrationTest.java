@@ -1,6 +1,6 @@
 package com.mymarz.autoconfigure;
 
-import com.mymarz.annotation.MARZ;
+import com.mymarz.annotation.Marz;
 import com.mymarz.core.ConfigSourceResolver;
 import com.mymarz.core.MarzRegistry;
 import com.mymarz.source.ConfigFormatParser;
