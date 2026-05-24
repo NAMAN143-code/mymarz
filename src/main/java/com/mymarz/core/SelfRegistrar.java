@@ -1,6 +1,7 @@
 package com.mymarz.core;
 
 import com.mymarz.source.ConfigFormatParser;
+import com.mymarz.source.FileConfigSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.DumperOptions;
@@ -225,22 +226,20 @@ public class SelfRegistrar {
     }
 
     private Path resolveFilePath(String uri) {
-        String path = uri;
-        for (String prefix : List.of("file:///", "file://", "file:", "classpath:")) {
-            if (path.startsWith(prefix)) {
-                path = path.substring(prefix.length());
-                break;
-            }
-        }
         // For classpath, resolve via ClassLoader
         if (uri.startsWith("classpath:")) {
-            var url = Thread.currentThread().getContextClassLoader().getResource(path.replaceAll("^/+", ""));
+            String resourcePath = uri.substring("classpath:".length());
+            var url = Thread.currentThread().getContextClassLoader()
+                    .getResource(resourcePath.replaceAll("^/+", ""));
             if (url != null && "file".equals(url.getProtocol())) {
                 try { return Path.of(url.toURI()); }
                 catch (Exception e) { /* fall through */ }
             }
+            return Path.of(resourcePath);
         }
-        return Path.of(path);
+        // file:// URIs — delegate to the canonical resolver so that file:/// keeps
+        // its leading slash (otherwise absolute paths would become relative).
+        return FileConfigSource.resolveFilePath(uri);
     }
 
     private String extractScheme(String uri) {

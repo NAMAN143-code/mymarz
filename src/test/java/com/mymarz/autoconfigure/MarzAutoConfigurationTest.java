@@ -43,6 +43,6 @@ class MarzAutoConfigurationTest {
 
     @Test @DisplayName("SmartLifecycle bean exists")
     void lifecycleBeanExists() {
-        runner.run(ctx -> assertThat(ctx).hasBean("hotSwapSourceLifecycle"));
+        runner.run(ctx -> assertThat(ctx).hasBean("marzSourceLifecycle"));
     }
 }
