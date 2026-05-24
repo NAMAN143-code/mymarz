@@ -37,12 +37,15 @@ public class MarzBeanPostProcessor implements BeanPostProcessor {
     private final MarzRegistry registry;
     private final TypeCoercer typeCoercer;
     private final ConfigSourceResolver sourceResolver;
+    private final SelfRegistrar selfRegistrar;
 
     public MarzBeanPostProcessor(MarzRegistry registry, TypeCoercer typeCoercer,
-                                     ConfigSourceResolver sourceResolver) {
+                                     ConfigSourceResolver sourceResolver,
+                                     SelfRegistrar selfRegistrar) {
         this.registry = registry;
         this.typeCoercer = typeCoercer;
         this.sourceResolver = sourceResolver;
+        this.selfRegistrar = selfRegistrar;
     }
 
     @Override
@@ -119,9 +122,12 @@ public class MarzBeanPostProcessor implements BeanPostProcessor {
                 log.warn("Failed to resolve key '{}' from '{}': {}", annotation.key(), annotation.source(), e.getMessage());
             }
         }
-        // 2. defaultValue
+        // 2. defaultValue — key was missing from source, record it
         String dv = annotation.defaultValue();
         if (dv != null && !dv.isEmpty()) {
+            if (selfRegistrar != null) {
+                selfRegistrar.recordMissing(annotation.key(), dv, annotation.source());
+            }
             try { return typeCoercer.coerce(dv, field.getType()); }
             catch (Exception e) { log.warn("Failed to coerce defaultValue '{}': {}", dv, e.getMessage()); }
         }

@@ -3,6 +3,7 @@ package com.mymarz.autoconfigure;
 import com.mymarz.core.ConfigSourceResolver;
 import com.mymarz.core.MarzBeanPostProcessor;
 import com.mymarz.core.MarzRegistry;
+import com.mymarz.core.SelfRegistrar;
 import com.mymarz.core.SourceStrategyResolver;
 import com.mymarz.source.ConfigFormatParser;
 import com.mymarz.type.TypeCoercer;
@@ -26,6 +27,7 @@ class MarzAutoConfigurationTest {
             assertThat(ctx).hasSingleBean(ConfigFormatParser.class);
             assertThat(ctx).hasSingleBean(SourceStrategyResolver.class);
             assertThat(ctx).hasSingleBean(ConfigSourceResolver.class);
+            assertThat(ctx).hasSingleBean(SelfRegistrar.class);
             assertThat(ctx).hasSingleBean(MarzBeanPostProcessor.class);
         });
     }
@@ -41,6 +43,6 @@ class MarzAutoConfigurationTest {
 
     @Test @DisplayName("SmartLifecycle bean exists")
     void lifecycleBeanExists() {
-        runner.run(ctx -> assertThat(ctx).hasBean("hotSwapSourceLifecycle"));
+        runner.run(ctx -> assertThat(ctx).hasBean("marzSourceLifecycle"));
     }
 }
