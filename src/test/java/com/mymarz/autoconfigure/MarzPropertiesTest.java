@@ -36,7 +36,7 @@ class MarzPropertiesTest {
     @Test
     @DisplayName("default poll interval is 5000ms")
     void defaultPollInterval() {
-        assertThat(properties.getDefaultPollIntervalMs()).isEqualTo(5000L);
+        assertThat(properties.getSafetyNetIntervalMs()).isEqualTo(60_000L);
     }
 
     @Test
@@ -62,15 +62,15 @@ class MarzPropertiesTest {
     })
     @DisplayName("poll interval below 500ms is clamped to 500ms")
     void safetyNetIntervalClamping(long input, long expected) {
-        properties.setDefaultPollIntervalMs(input);
-        assertThat(properties.getDefaultPollIntervalMs()).isEqualTo(expected);
+        properties.setSafetyNetIntervalMs(input);
+        assertThat(properties.getSafetyNetIntervalMs()).isEqualTo(expected);
     }
 
     @Test
     @DisplayName("large poll interval values are accepted")
     void largePollInterval() {
-        properties.setDefaultPollIntervalMs(60_000L);
-        assertThat(properties.getDefaultPollIntervalMs()).isEqualTo(60_000L);
+        properties.setSafetyNetIntervalMs(60_000L);
+        assertThat(properties.getSafetyNetIntervalMs()).isEqualTo(60_000L);
     }
 
     // ═══════════════════════════════════════════════════════════════════
