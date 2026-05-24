@@ -1,34 +1,34 @@
 {
   "groups": [
     {
-      "name": "hotswap",
-      "type": "com.hotswap.autoconfigure.HotSwapProperties",
-      "sourceType": "com.hotswap.autoconfigure.HotSwapProperties"
+      "name": "marz",
+      "type": "com.mymarz.autoconfigure.MarzProperties",
+      "sourceType": "com.mymarz.autoconfigure.MarzProperties"
     }
   ],
   "properties": [
     {
-      "name": "hotswap.enabled",
+      "name": "marz.enabled",
       "type": "java.lang.Boolean",
-      "description": "Enable HotSwap auto-configuration. Set to false to disable all HotSwap processing.",
+      "description": "Enable MARZ auto-configuration. Set to false to disable all MARZ processing.",
       "defaultValue": true
     },
     {
-      "name": "hotswap.default-poll-interval-ms",
+      "name": "marz.default-poll-interval-ms",
       "type": "java.lang.Long",
       "description": "Default poll interval in milliseconds. Minimum 500ms.",
       "defaultValue": 5000
     },
     {
-      "name": "hotswap.thread-pool-size",
+      "name": "marz.thread-pool-size",
       "type": "java.lang.Integer",
       "description": "Polling thread pool size. 0 = auto-size based on source count and available processors.",
       "defaultValue": 0
     },
     {
-      "name": "hotswap.default-source",
+      "name": "marz.default-source",
       "type": "java.lang.String",
-      "description": "Default config source URI for fields using platform://hotswap source."
+      "description": "Default config source URI for fields using platform://marz source."
     }
   ],
   "hints": []

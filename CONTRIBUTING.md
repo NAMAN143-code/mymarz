@@ -1,6 +1,6 @@
-# Contributing to HotSwap
+# Contributing to MARZ
 
-Thank you for your interest in contributing to HotSwap! This guide will help you get started.
+Thank you for your interest in contributing to MARZ! This guide will help you get started.
 
 ## Development Setup
 

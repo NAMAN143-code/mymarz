@@ -1,4 +1,4 @@
-# HotSwap
+# MARZ
 
 [![Build](https://github.com/NAMAN143-code/hswap/actions/workflows/ci.yml/badge.svg)](https://github.com/NAMAN143-code/hswap/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -7,7 +7,7 @@
 
 **Runtime configuration management for Java — change config values without restarting your application.**
 
-HotSwap is a Spring annotation library that enables true JVM-level hot-swapping of configuration values. Annotate a field with `@HotSwap`, point it at a config file, and the value updates in memory the instant the file changes. No restart. No refresh endpoint. No SDK calls. Just an annotation.
+MARZ is a Spring annotation library that enables true JVM-level hot-swapping of configuration values. Annotate a field with `@Marz`, point it at a config file, and the value updates in memory the instant the file changes. No restart. No refresh endpoint. No SDK calls. Just an annotation.
 
 ## How It's Different
 
@@ -16,9 +16,9 @@ HotSwap is a Spring annotation library that enables true JVM-level hot-swapping 
 | Spring `@RefreshScope` | Recreates entire bean | Actuator `/refresh` call | Bean-level |
 | LaunchDarkly / Unleash | SDK method calls | No | Per-evaluation |
 | Spring Cloud Config | Properties reload | Yes (or actuator) | Application-level |
-| **HotSwap** | **`AtomicReference` swap via OS file events** | **No** | **Field-level** |
+| **MARZ** | **`AtomicReference` swap via OS file events** | **No** | **Field-level** |
 
-HotSwap uses OS-level file change detection (`WatchService` — inotify on Linux, kqueue on macOS) combined with a reverse index that maps config keys directly to in-memory `AtomicReference` locations. When a config file changes, only the specific fields bound to changed keys are updated. Everything else is untouched.
+MARZ uses OS-level file change detection (`WatchService` — inotify on Linux, kqueue on macOS) combined with a reverse index that maps config keys directly to in-memory `AtomicReference` locations. When a config file changes, only the specific fields bound to changed keys are updated. Everything else is untouched.
 
 **Read path cost:** ~5ns (volatile read). Zero IO. Zero network calls.
 
@@ -28,8 +28,8 @@ HotSwap uses OS-level file change detection (`WatchService` — inotify on Linux
 
 ```xml
 <dependency>
-    <groupId>io.hotswap</groupId>
-    <artifactId>hotswap-spring-boot-starter</artifactId>
+    <groupId>com.mymarz</groupId>
+    <artifactId>marz-spring-boot-starter</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
@@ -37,7 +37,7 @@ HotSwap uses OS-level file change detection (`WatchService` — inotify on Linux
 ### 2. Create a config file
 
 ```yaml
-# config/hotswap.yml
+# config/marz.yml
 feature:
   new-checkout:
     enabled: true
@@ -52,10 +52,10 @@ rate:
 @Service
 public class CheckoutService {
 
-    @HotSwap(key = "feature.new-checkout.enabled", source = "file://config/hotswap.yml")
+    @Marz(key = "feature.new-checkout.enabled", source = "file://config/marz.yml")
     private boolean newCheckoutEnabled = false;
 
-    @HotSwap(key = "rate.limit.max-requests", source = "file://config/hotswap.yml")
+    @Marz(key = "rate.limit.max-requests", source = "file://config/marz.yml")
     private int maxRequests = 100;
 
     public void processOrder(Order order) {
@@ -68,11 +68,11 @@ public class CheckoutService {
 
 ### 4. Run your app and change the YAML
 
-Edit `config/hotswap.yml` while your app is running. The field value updates within milliseconds — no restart, no refresh endpoint, no downtime.
+Edit `config/marz.yml` while your app is running. The field value updates within milliseconds — no restart, no refresh endpoint, no downtime.
 
 ## Architecture: Event-Driven Targeted Swap
 
-HotSwap does **not** poll your config files on a timer. Instead:
+MARZ does **not** poll your config files on a timer. Instead:
 
 ```
 Config File Changes
@@ -90,7 +90,7 @@ Reverse Index lookup (key → List<FieldBinding>)
 AtomicReference.set(newValue)
         │  ← Only affected fields are touched.
         ▼
-HotSwapEvent published (Spring ApplicationEvent)
+MarzEvent published (Spring ApplicationEvent)
 ```
 
 If your YAML has 200 keys and you change 1, only that 1 key's bound fields are swapped. The other 199 are never read, parsed, or touched.
@@ -101,16 +101,16 @@ If your YAML has 200 keys and you change 1, only that 1 key's bound fields are s
 |----------|-----|-----|
 | File source, nothing changes | **Zero** | **Zero** (blocked on `WatchService.take()`) |
 | File source, 1 key changes | 1 file read (~0.1ms) | ~0.5ms |
-| App reads `@HotSwap` field | **Zero** | **~5ns** (volatile read) |
+| App reads `@Marz` field | **Zero** | **~5ns** (volatile read) |
 
 ### Tiered Source Resolution
 
-HotSwap automatically selects the best change detection strategy for your environment:
+MARZ automatically selects the best change detection strategy for your environment:
 
 | Mode | Detection | When |
 |------|-----------|------|
 | **A: WatchService** | OS inotify/kqueue | Local files, Docker volumes, K8s ConfigMaps |
-| **B: Platform Push** | WebSocket | `source="platform://hotswap"` (commercial) |
+| **B: Platform Push** | WebSocket | `source="platform://marz"` (commercial) |
 | **C: Platform Promoted** | WebSocket (upgraded) | NFS/network FS + platform connected |
 | **D: CRC32 Poll** | Periodic checksum | Last resort (no WatchService, no platform) |
 
@@ -119,12 +119,12 @@ No configuration needed — `SourceStrategyResolver` probes the filesystem at st
 ## Annotation Reference
 
 ```java
-@HotSwap(
+@Marz(
     key = "feature.dark-mode.enabled",     // Required: config key to resolve
-    source = "file://config/hotswap.yml",  // Config source URI (default: platform://hotswap)
+    source = "file://config/marz.yml",  // Config source URI (default: platform://marz)
     pollInterval = 5000,                   // Safety-net poll interval in ms (default: 5000)
     defaultValue = "false",                // Fallback when source is unreachable
-    type = HotSwapType.INFERRED,           // Type coercion (auto-detected from field)
+    type = MARZType.INFERRED,           // Type coercion (auto-detected from field)
     description = "Enable dark mode",      // Human-readable label for dashboard
     requiresApproval = false,              // Require approval workflow via platform
     sensitive = false                      // Mask value in logs and dashboard
@@ -145,24 +145,24 @@ private boolean darkModeEnabled;
 | Local file (Properties) | `file://` | `file://config/app.properties` |
 | Classpath | `classpath:` | `classpath:config.properties` |
 | HTTP endpoint | `http://` / `https://` | `https://config-server/api/v1/config` |
-| HotSwap Platform | `platform://hotswap` | Connects to commercial SaaS dashboard |
+| MARZ Platform | `platform://marz` | Connects to commercial SaaS dashboard |
 
 ## Listening for Changes
 
 ```java
 @EventListener
-public void onConfigChange(HotSwapEvent event) {
+public void onConfigChange(MarzEvent event) {
     log.info("{}: {} → {}", event.getKey(), event.getOldValue(), event.getNewValue());
 }
 ```
 
-`HotSwapEvent` fires **after** the `AtomicReference` is updated, so listeners always see the new state.
+`MarzEvent` fires **after** the `AtomicReference` is updated, so listeners always see the new state.
 
 ## Configuration
 
 ```yaml
 # application.yml
-hotswap:
+marz:
   enabled: true                    # Master switch (default: true)
   default-poll-interval: 5000      # Safety-net poll interval in ms
   thread-pool-size: 2              # WatchService thread pool size
@@ -171,19 +171,19 @@ hotswap:
 
 ## Thread Safety
 
-Every `@HotSwap` field is backed by an `AtomicReference`. Reads are lock-free volatile reads (~5ns). Writes use `compareAndSet` for safe concurrent updates. No `synchronized` blocks, no locks, no contention.
+Every `@Marz` field is backed by an `AtomicReference`. Reads are lock-free volatile reads (~5ns). Writes use `compareAndSet` for safe concurrent updates. No `synchronized` blocks, no locks, no contention.
 
 ## Core Components
 
 | Component | Responsibility |
 |-----------|---------------|
-| `@HotSwap` | Field-level annotation declaring config binding |
-| `HotSwapRegistry` | Reverse index: config key → `List<FieldBinding>` |
+| `@Marz` | Field-level annotation declaring config binding |
+| `MarzRegistry` | Reverse index: config key → `List<FieldBinding>` |
 | `FieldBinding` | Immutable record: bean + `AtomicReference` + type + key + source |
 | `FileConfigSource` | WatchService-based file change detection + diff |
 | `TypeCoercer` | String → target type conversion with validation |
-| `HotSwapBeanPostProcessor` | Spring lifecycle hook that scans and registers fields |
-| `HotSwapAutoConfiguration` | Spring Boot auto-configuration entry point |
+| `MARZBeanPostProcessor` | Spring lifecycle hook that scans and registers fields |
+| `MARZAutoConfiguration` | Spring Boot auto-configuration entry point |
 | `ConfigFormatParser` | SPI for YAML, JSON, and properties file parsing |
 
 ## Requirements

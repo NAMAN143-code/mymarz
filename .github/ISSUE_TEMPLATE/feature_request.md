@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest a feature for HotSwap
+about: Suggest a feature for MARZ
 title: "[FEATURE] "
 labels: enhancement
 assignees: ''
