@@ -2,8 +2,7 @@
 # Individual test classes override these with @TestPropertySource
 marz:
   enabled: true
-  default-poll-interval-ms: 5000
-  thread-pool-size: 1
+  safety-net-interval-ms: 60000
 
 spring:
   main:

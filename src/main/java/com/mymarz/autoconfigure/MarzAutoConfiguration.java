@@ -42,7 +42,7 @@ public class MarzAutoConfiguration {
                                                       SourceStrategyResolver strategyResolver,
                                                       MarzProperties properties) {
         return new ConfigSourceResolver(parser, registry, strategyResolver,
-                properties.getDefaultSource(), properties.getDefaultPollIntervalMs());
+                properties.getDefaultSource(), properties.getSafetyNetIntervalMs());
     }
 
     @Bean

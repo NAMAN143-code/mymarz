@@ -203,8 +203,8 @@ class ConfigSourceResolverExpandedTest {
     // ═══════════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("defaultPollIntervalMs below 500 is clamped in constructor")
-    void pollInterval_clamped(@TempDir Path tempDir) throws IOException {
+    @DisplayName("safetyNetIntervalMs below 500 is clamped in constructor")
+    void safetyNetInterval_clamped(@TempDir Path tempDir) throws IOException {
         Path configFile = tempDir.resolve("config.yml");
         Files.writeString(configFile, "key: value\n");
 

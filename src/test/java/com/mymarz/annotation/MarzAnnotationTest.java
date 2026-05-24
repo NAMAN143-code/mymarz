@@ -15,7 +15,7 @@ class MarzAnnotationTest {
     @Marz(
             key = "test.rate.limit",
             source = "file:///etc/config.yml",
-            pollInterval = 10000,
+            safetyNetInterval = 60000,
             defaultValue = "100",
             type = MarzType.INTEGER,
             description = "Rate limit",
@@ -36,7 +36,7 @@ class MarzAnnotationTest {
         assertThat(annotation).isNotNull();
         assertThat(annotation.key()).isEqualTo("test.feature.enabled");
         assertThat(annotation.source()).isEqualTo("platform://marz");
-        assertThat(annotation.pollInterval()).isEqualTo(5000L);
+        assertThat(annotation.safetyNetInterval()).isEqualTo(60000L);
         assertThat(annotation.defaultValue()).isEmpty();
         assertThat(annotation.type()).isEqualTo(MarzType.INFERRED);
         assertThat(annotation.description()).isEmpty();
@@ -52,7 +52,7 @@ class MarzAnnotationTest {
         assertThat(annotation).isNotNull();
         assertThat(annotation.key()).isEqualTo("test.rate.limit");
         assertThat(annotation.source()).isEqualTo("file:///etc/config.yml");
-        assertThat(annotation.pollInterval()).isEqualTo(10000L);
+        assertThat(annotation.safetyNetInterval()).isEqualTo(60000L);
         assertThat(annotation.defaultValue()).isEqualTo("100");
         assertThat(annotation.type()).isEqualTo(MarzType.INTEGER);
         assertThat(annotation.description()).isEqualTo("Rate limit");

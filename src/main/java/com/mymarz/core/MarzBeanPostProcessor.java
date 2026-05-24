@@ -84,11 +84,11 @@ public class MarzBeanPostProcessor implements BeanPostProcessor {
             }
 
             // ── POLL INTERVAL VALIDATION (ADR-001 §4) ──────────────────
-            long pollInterval = annotation.pollInterval();
-            if (pollInterval > 0 && pollInterval < 500) {
-                log.warn("@Marz field {}.{} has pollInterval={}ms which is below the 500ms minimum. "
+            long safetyNetInterval = annotation.safetyNetInterval();
+            if (safetyNetInterval > 0 && safetyNetInterval < 500) {
+                log.warn("@Marz field {}.{} has safetyNetInterval={}ms which is below the 500ms minimum. "
                         + "Clamped to 500ms to prevent polling storms.",
-                        bean.getClass().getSimpleName(), field.getName(), pollInterval);
+                        bean.getClass().getSimpleName(), field.getName(), safetyNetInterval);
             }
 
             field.setAccessible(true);

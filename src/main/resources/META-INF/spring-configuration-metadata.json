@@ -4,6 +4,11 @@
       "name": "marz",
       "type": "com.mymarz.autoconfigure.MarzProperties",
       "sourceType": "com.mymarz.autoconfigure.MarzProperties"
+    },
+    {
+      "name": "marz.platform",
+      "type": "com.mymarz.autoconfigure.MarzProperties$Platform",
+      "sourceType": "com.mymarz.autoconfigure.MarzProperties"
     }
   ],
   "properties": [
@@ -14,21 +19,43 @@
       "defaultValue": true
     },
     {
-      "name": "marz.default-poll-interval-ms",
+      "name": "marz.safety-net-interval-ms",
       "type": "java.lang.Long",
-      "description": "Default poll interval in milliseconds. Minimum 500ms.",
-      "defaultValue": 5000
-    },
-    {
-      "name": "marz.thread-pool-size",
-      "type": "java.lang.Integer",
-      "description": "Polling thread pool size. 0 = auto-size based on source count and available processors.",
-      "defaultValue": 0
+      "description": "Safety-net CRC32 check interval in milliseconds. WatchService is the primary event-driven mechanism; this runs as insurance. Minimum 500ms.",
+      "defaultValue": 60000
     },
     {
       "name": "marz.default-source",
       "type": "java.lang.String",
       "description": "Default config source URI for fields using platform://marz source."
+    },
+    {
+      "name": "marz.platform.api-key",
+      "type": "java.lang.String",
+      "description": "Platform API key. The agent only activates when this is set."
+    },
+    {
+      "name": "marz.platform.endpoint",
+      "type": "java.lang.String",
+      "description": "Platform WebSocket endpoint.",
+      "defaultValue": "wss://api.mymarz.com/agent"
+    },
+    {
+      "name": "marz.platform.environment",
+      "type": "java.lang.String",
+      "description": "Environment label (production/staging/dev). Falls back to spring.profiles.active."
+    },
+    {
+      "name": "marz.platform.heartbeat-interval-ms",
+      "type": "java.lang.Long",
+      "description": "Heartbeat interval in milliseconds. Minimum 5000ms.",
+      "defaultValue": 30000
+    },
+    {
+      "name": "marz.platform.reconnect-max-delay-ms",
+      "type": "java.lang.Long",
+      "description": "Maximum reconnect backoff delay in milliseconds.",
+      "defaultValue": 60000
     }
   ],
   "hints": []
