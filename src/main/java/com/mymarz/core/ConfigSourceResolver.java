@@ -28,18 +28,18 @@ public class ConfigSourceResolver {
     private final MarzRegistry registry;
     private final SourceStrategyResolver strategyResolver;
     private final String defaultSource;
-    private final long defaultPollIntervalMs;
+    private final long safetyNetIntervalMs;
 
     private final Map<String, ConfigSource> sources = new ConcurrentHashMap<>();
 
     public ConfigSourceResolver(ConfigFormatParser parser, MarzRegistry registry,
                                  SourceStrategyResolver strategyResolver,
-                                 String defaultSource, long defaultPollIntervalMs) {
+                                 String defaultSource, long safetyNetIntervalMs) {
         this.parser = parser;
         this.registry = registry;
         this.strategyResolver = strategyResolver;
         this.defaultSource = defaultSource;
-        this.defaultPollIntervalMs = Math.max(500L, defaultPollIntervalMs);
+        this.safetyNetIntervalMs = Math.max(500L, safetyNetIntervalMs);
     }
 
     /**
@@ -152,7 +152,7 @@ public class ConfigSourceResolver {
     }
 
     private ConfigSource createHttpSource(String uri) {
-        long pollSeconds = defaultPollIntervalMs / 1000;
+        long pollSeconds = safetyNetIntervalMs / 1000;
         return new HttpConfigSource(uri, parser, registry, Math.max(1, pollSeconds));
     }
 

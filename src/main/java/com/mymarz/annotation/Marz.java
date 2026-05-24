@@ -35,7 +35,7 @@ import java.lang.annotation.Target;
  * &#64;Marz(
  *     key = "rate.limit.max-requests",
  *     source = "file:///etc/myapp/config.yml",
- *     pollInterval = 10000,
+ *     safetyNetInterval = 60000,
  *     defaultValue = "100",
  *     type = MarzType.INTEGER,
  *     description = "Maximum API requests per minute",
@@ -70,12 +70,14 @@ public @interface Marz {
     String source() default "platform://marz";
 
     /**
-     * Polling interval in milliseconds. Minimum: 500ms.
-     * Set to {@code -1} to disable polling (push-only mode).
+     * Safety-net CRC32 check interval in milliseconds. WatchService is the primary
+     * event-driven mechanism; this periodic checksum runs as insurance for edge cases
+     * (NFS mounts, macOS kqueue delays). Minimum: 500ms.
+     * Set to {@code -1} for push-only mode (platform WebSocket, no file polling).
      *
-     * @return polling interval in ms (default: 5000)
+     * @return safety-net interval in ms (default: 60000)
      */
-    long pollInterval() default 5000L;
+    long safetyNetInterval() default 60_000L;
 
     /**
      * Default value as a String, coerced to the target field type.

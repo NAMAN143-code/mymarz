@@ -61,7 +61,7 @@ class MarzPropertiesTest {
         "-1, 500",      // negative → clamped to 500ms
     })
     @DisplayName("poll interval below 500ms is clamped to 500ms")
-    void pollIntervalClamping(long input, long expected) {
+    void safetyNetIntervalClamping(long input, long expected) {
         properties.setDefaultPollIntervalMs(input);
         assertThat(properties.getDefaultPollIntervalMs()).isEqualTo(expected);
     }
