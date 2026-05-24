@@ -8,6 +8,7 @@ import com.mymarz.core.SourceStrategyResolver;
 import com.mymarz.platform.PlatformAgent;
 import com.mymarz.platform.PlatformHealthIndicator;
 import com.mymarz.platform.PlatformMessageHandler;
+import com.mymarz.platform.RegistrationHandler;
 import com.mymarz.source.ConfigFormatParser;
 import com.mymarz.type.TypeCoercer;
 import org.slf4j.Logger;
@@ -93,6 +94,21 @@ public class MarzAutoConfiguration {
     public PlatformAgent platformAgent(MarzProperties properties,
                                         List<PlatformMessageHandler> handlers) {
         return new PlatformAgent(properties.getPlatform(), handlers);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "marz.platform", name = "api-key")
+    @ConditionalOnMissingBean
+    public RegistrationHandler registrationHandler(MarzRegistry registry, PlatformAgent agent,
+                                                     MarzProperties properties,
+                                                     org.springframework.core.env.Environment env) {
+        String appName = env.getProperty("spring.application.name", "unknown");
+        String environment = properties.getPlatform().getEnvironment();
+        if (environment == null || environment.isEmpty()) {
+            String[] profiles = env.getActiveProfiles();
+            environment = profiles.length > 0 ? profiles[0] : "default";
+        }
+        return new RegistrationHandler(registry, agent, properties.getPlatform(), appName, environment);
     }
 
     @Bean

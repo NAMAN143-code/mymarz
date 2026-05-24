@@ -208,6 +208,13 @@ public class MarzRegistry {
     }
 
     /**
+     * @return all registered key → bindings entries (unmodifiable)
+     */
+    public Map<String, List<FieldBinding>> getAllBindings() {
+        return java.util.Collections.unmodifiableMap(keyToBindings);
+    }
+
+    /**
      * Clear all registrations (used during shutdown).
      */
     public void clear() {
