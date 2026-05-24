@@ -256,7 +256,7 @@ class MarzBeanPostProcessorTest {
 
     static class FinalFieldBean {
         @Marz(key = "feature.enabled")
-        final volatile boolean enabled = false; // final — should be rejected
+        final boolean enabled = false; // final — should be rejected
     }
 
     static class PlainBean {
