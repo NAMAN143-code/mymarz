@@ -8,6 +8,7 @@ import com.mymarz.core.SourceStrategyResolver;
 import com.mymarz.platform.PlatformAgent;
 import com.mymarz.platform.PlatformHealthIndicator;
 import com.mymarz.platform.PlatformMessageHandler;
+import com.mymarz.platform.ConfigUpdateHandler;
 import com.mymarz.platform.RegistrationHandler;
 import com.mymarz.source.ConfigFormatParser;
 import com.mymarz.type.TypeCoercer;
@@ -109,6 +110,16 @@ public class MarzAutoConfiguration {
             environment = profiles.length > 0 ? profiles[0] : "default";
         }
         return new RegistrationHandler(registry, agent, properties.getPlatform(), appName, environment);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "marz.platform", name = "api-key")
+    @ConditionalOnMissingBean
+    public ConfigUpdateHandler configUpdateHandler(MarzRegistry registry, PlatformAgent agent,
+                                                     MarzProperties properties,
+                                                     RegistrationHandler registrationHandler) {
+        return new ConfigUpdateHandler(registry, agent,
+                properties.getPlatform().getApiKey(), registrationHandler.getInstanceId());
     }
 
     @Bean
