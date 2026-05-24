@@ -3,6 +3,7 @@ package com.mymarz.autoconfigure;
 import com.mymarz.core.ConfigSourceResolver;
 import com.mymarz.core.MarzBeanPostProcessor;
 import com.mymarz.core.MarzRegistry;
+import com.mymarz.core.SelfRegistrar;
 import com.mymarz.core.SourceStrategyResolver;
 import com.mymarz.source.ConfigFormatParser;
 import com.mymarz.type.TypeCoercer;
@@ -27,7 +28,7 @@ public class MarzAutoConfiguration {
     public TypeCoercer typeCoercer() { return new TypeCoercer(); }
 
     @Bean @ConditionalOnMissingBean
-    public MarzRegistry hotSwapRegistry(ApplicationEventPublisher pub, TypeCoercer coercer) {
+    public MarzRegistry marzRegistry(ApplicationEventPublisher pub, TypeCoercer coercer) {
         return new MarzRegistry(pub, coercer);
     }
 
@@ -45,18 +46,27 @@ public class MarzAutoConfiguration {
                 properties.getDefaultSource(), properties.getSafetyNetIntervalMs());
     }
 
-    @Bean
-    public static MarzBeanPostProcessor hotSwapBeanPostProcessor(
-            MarzRegistry registry, TypeCoercer coercer, ConfigSourceResolver sourceResolver) {
-        return new MarzBeanPostProcessor(registry, coercer, sourceResolver);
+    @Bean @ConditionalOnMissingBean
+    public SelfRegistrar selfRegistrar() {
+        return new SelfRegistrar();
     }
 
     @Bean
-    public SmartLifecycle hotSwapSourceLifecycle(ConfigSourceResolver sourceResolver, MarzRegistry registry) {
+    public static MarzBeanPostProcessor marzBeanPostProcessor(
+            MarzRegistry registry, TypeCoercer coercer,
+            ConfigSourceResolver sourceResolver, SelfRegistrar selfRegistrar) {
+        return new MarzBeanPostProcessor(registry, coercer, sourceResolver, selfRegistrar);
+    }
+
+    @Bean
+    public SmartLifecycle marzSourceLifecycle(ConfigSourceResolver sourceResolver,
+                                              MarzRegistry registry,
+                                              SelfRegistrar selfRegistrar) {
         return new SmartLifecycle() {
             private volatile boolean running = false;
             @Override public void start() {
                 sourceResolver.startAll();
+                selfRegistrar.writeAll();
                 log.info("MARZ started: {} key(s), {} binding(s)",
                         registry.getRegisteredKeyCount(), registry.getTotalBindingCount());
                 running = true;

@@ -40,7 +40,7 @@ class MarzBeanPostProcessorTest {
         registry = new MarzRegistry(publisher, coercer);
         sourceResolver = new ConfigSourceResolver(
                 new ConfigFormatParser(), registry, new SourceStrategyResolver(), null, 5000L);
-        bpp = new MarzBeanPostProcessor(registry, coercer, sourceResolver);
+        bpp = new MarzBeanPostProcessor(registry, coercer, sourceResolver, new SelfRegistrar());
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -152,7 +152,7 @@ class MarzBeanPostProcessorTest {
         // Rebuild with a resolver that can find the file
         sourceResolver = new ConfigSourceResolver(
                 new ConfigFormatParser(), registry, new SourceStrategyResolver(), null, 5000L);
-        bpp = new MarzBeanPostProcessor(registry, coercer, sourceResolver);
+        bpp = new MarzBeanPostProcessor(registry, coercer, sourceResolver, new SelfRegistrar());
 
         SourcePriorityBean bean = new SourcePriorityBean();
         // Patch the source URI to point to our temp file
