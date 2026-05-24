@@ -159,7 +159,8 @@ public class ConfigSourceResolver {
     static String extractScheme(String uri) {
         if (uri == null || uri.isEmpty()) return "";
         int colonIndex = uri.indexOf(':');
-        return colonIndex <= 0 ? uri.toLowerCase() : uri.substring(0, colonIndex).toLowerCase();
+        if (colonIndex <= 0) return "";
+        return uri.substring(0, colonIndex).toLowerCase();
     }
 
     /**
