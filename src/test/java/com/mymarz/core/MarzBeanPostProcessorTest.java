@@ -52,9 +52,10 @@ class MarzBeanPostProcessorTest {
     void nonVolatileField_throwsAtStartup() {
         NonVolatileBean bean = new NonVolatileBean();
 
-        // BPP should catch the error internally (logs it), not propagate
-        // But the field should NOT be registered
-        bpp.postProcessAfterInitialization(bean, "nonVolatileBean");
+        // Fail-fast: a non-volatile @Marz field must crash startup, not register
+        assertThatThrownBy(() -> bpp.postProcessAfterInitialization(bean, "nonVolatileBean"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("MUST be declared volatile");
 
         assertThat(registry.getRegisteredKeyCount()).isZero();
     }
@@ -75,11 +76,13 @@ class MarzBeanPostProcessorTest {
     // ═══════════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("static @Marz field is rejected — not registered")
+    @DisplayName("static @Marz field is rejected — throws at startup")
     void staticField_rejected() {
         StaticFieldBean bean = new StaticFieldBean();
 
-        bpp.postProcessAfterInitialization(bean, "staticFieldBean");
+        assertThatThrownBy(() -> bpp.postProcessAfterInitialization(bean, "staticFieldBean"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must not be static");
 
         assertThat(registry.getRegisteredKeyCount()).isZero();
     }
@@ -89,11 +92,15 @@ class MarzBeanPostProcessorTest {
     // ═══════════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("final @Marz field is rejected — not registered")
+    @DisplayName("final @Marz field is rejected — throws at startup")
     void finalField_rejected() {
         FinalFieldBean bean = new FinalFieldBean();
 
-        bpp.postProcessAfterInitialization(bean, "finalFieldBean");
+        // A final field is inherently non-volatile (Java forbids `volatile final`),
+        // so the volatile gate trips first — the message is about volatility, not
+        // finality. Either way, the field must be rejected and never registered.
+        assertThatThrownBy(() -> bpp.postProcessAfterInitialization(bean, "finalFieldBean"))
+                .isInstanceOf(IllegalStateException.class);
 
         assertThat(registry.getRegisteredKeyCount()).isZero();
     }
