@@ -52,11 +52,14 @@ class MarzBeanPostProcessorTest {
     void nonVolatileField_throwsAtStartup() {
         NonVolatileBean bean = new NonVolatileBean();
 
-        // Fail-fast: a non-volatile @Marz field must crash startup, not register
+        // Fail-fast contract (KAN-38 / ADR-001 Amendment 2): a non-volatile
+        // @Marz field crashes the app at startup rather than silently swallowing
+        // future config changes.
         assertThatThrownBy(() -> bpp.postProcessAfterInitialization(bean, "nonVolatileBean"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("MUST be declared volatile");
 
+        // The offending field must never reach the registry.
         assertThat(registry.getRegisteredKeyCount()).isZero();
     }
 
@@ -96,9 +99,8 @@ class MarzBeanPostProcessorTest {
     void finalField_rejected() {
         FinalFieldBean bean = new FinalFieldBean();
 
-        // A final field is inherently non-volatile (Java forbids `volatile final`),
-        // so the volatile gate trips first — the message is about volatility, not
-        // finality. Either way, the field must be rejected and never registered.
+        // A final field cannot also be volatile (Java forbids the combination),
+        // so it trips the volatile gate first — either way the app fails fast.
         assertThatThrownBy(() -> bpp.postProcessAfterInitialization(bean, "finalFieldBean"))
                 .isInstanceOf(IllegalStateException.class);
 
