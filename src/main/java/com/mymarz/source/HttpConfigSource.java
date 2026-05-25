@@ -36,7 +36,7 @@ public class HttpConfigSource implements ConfigSource {
     private final URI endpoint;
     private final ConfigFormatParser parser;
     private final MarzRegistry registry;
-    private final long pollIntervalSeconds;
+    private final long httpPollIntervalSeconds;
     private final HttpClient httpClient;
 
     private volatile Map<String, String> cachedState = Map.of();
@@ -48,16 +48,16 @@ public class HttpConfigSource implements ConfigSource {
     private ScheduledExecutorService scheduler;
 
     public HttpConfigSource(String uri, ConfigFormatParser parser,
-                            MarzRegistry registry, long pollIntervalSeconds) {
+                            MarzRegistry registry, long httpPollIntervalSeconds) {
         this.uri = uri;
         this.parser = parser;
         this.registry = registry;
-        this.pollIntervalSeconds = pollIntervalSeconds > 0 ? pollIntervalSeconds : DEFAULT_POLL_INTERVAL_SECONDS;
+        this.httpPollIntervalSeconds = httpPollIntervalSeconds > 0 ? httpPollIntervalSeconds : DEFAULT_POLL_INTERVAL_SECONDS;
         this.endpoint = URI.create(uri);
         this.httpClient = HttpClient.newBuilder().connectTimeout(HTTP_TIMEOUT).build();
         initialLoad();
         log.info("HttpConfigSource created: {} ({} keys, poll every {}s)",
-                uri, cachedState.size(), this.pollIntervalSeconds);
+                uri, cachedState.size(), this.httpPollIntervalSeconds);
     }
 
     @Override public String resolve(String key) { return cachedState.get(key); }
@@ -74,8 +74,8 @@ public class HttpConfigSource implements ConfigSource {
             t.setDaemon(true);
             return t;
         });
-        scheduler.scheduleAtFixedRate(this::poll, pollIntervalSeconds, pollIntervalSeconds, TimeUnit.SECONDS);
-        log.info("HttpConfigSource started: polling {} every {}s", uri, pollIntervalSeconds);
+        scheduler.scheduleAtFixedRate(this::poll, httpPollIntervalSeconds, httpPollIntervalSeconds, TimeUnit.SECONDS);
+        log.info("HttpConfigSource started: polling {} every {}s", uri, httpPollIntervalSeconds);
     }
 
     @Override
@@ -159,7 +159,7 @@ public class HttpConfigSource implements ConfigSource {
      */
     long calculateBackoff(int failures) {
         int exponent = Math.min(failures - MAX_CONSECUTIVE_FAILURES, 10);
-        long backoff = (pollIntervalSeconds * 1000) * (1L << exponent);
+        long backoff = (httpPollIntervalSeconds * 1000) * (1L << exponent);
         return Math.min(backoff, MAX_BACKOFF_MS);
     }
 

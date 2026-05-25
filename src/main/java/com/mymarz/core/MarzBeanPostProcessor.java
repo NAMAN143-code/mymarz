@@ -103,6 +103,8 @@ public class MarzBeanPostProcessor implements BeanPostProcessor {
                     annotation.key(), annotation.source(), annotation.sensitive());
 
             registry.register(annotation.key(), binding);
+        } catch (IllegalStateException e) {
+            throw e; // Fail-fast: volatile/static/final violations must crash the app
         } catch (Exception e) {
             log.error("Failed to process @Marz on {}.{}: {}",
                     bean.getClass().getSimpleName(), field.getName(), e.getMessage(), e);

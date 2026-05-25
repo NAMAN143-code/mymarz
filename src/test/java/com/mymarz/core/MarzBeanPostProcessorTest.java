@@ -52,10 +52,14 @@ class MarzBeanPostProcessorTest {
     void nonVolatileField_throwsAtStartup() {
         NonVolatileBean bean = new NonVolatileBean();
 
-        // BPP should catch the error internally (logs it), not propagate
-        // But the field should NOT be registered
-        bpp.postProcessAfterInitialization(bean, "nonVolatileBean");
+        // Fail-fast contract (KAN-38 / ADR-001 Amendment 2): a non-volatile
+        // @Marz field crashes the app at startup rather than silently swallowing
+        // future config changes.
+        assertThatThrownBy(() -> bpp.postProcessAfterInitialization(bean, "nonVolatileBean"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("MUST be declared volatile");
 
+        // The offending field must never reach the registry.
         assertThat(registry.getRegisteredKeyCount()).isZero();
     }
 
@@ -75,11 +79,13 @@ class MarzBeanPostProcessorTest {
     // ═══════════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("static @Marz field is rejected — not registered")
+    @DisplayName("static @Marz field is rejected — throws at startup")
     void staticField_rejected() {
         StaticFieldBean bean = new StaticFieldBean();
 
-        bpp.postProcessAfterInitialization(bean, "staticFieldBean");
+        assertThatThrownBy(() -> bpp.postProcessAfterInitialization(bean, "staticFieldBean"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must not be static");
 
         assertThat(registry.getRegisteredKeyCount()).isZero();
     }
@@ -89,11 +95,14 @@ class MarzBeanPostProcessorTest {
     // ═══════════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("final @Marz field is rejected — not registered")
+    @DisplayName("final @Marz field is rejected — throws at startup")
     void finalField_rejected() {
         FinalFieldBean bean = new FinalFieldBean();
 
-        bpp.postProcessAfterInitialization(bean, "finalFieldBean");
+        // A final field cannot also be volatile (Java forbids the combination),
+        // so it trips the volatile gate first — either way the app fails fast.
+        assertThatThrownBy(() -> bpp.postProcessAfterInitialization(bean, "finalFieldBean"))
+                .isInstanceOf(IllegalStateException.class);
 
         assertThat(registry.getRegisteredKeyCount()).isZero();
     }
