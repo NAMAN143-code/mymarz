@@ -11,7 +11,7 @@
 
     <name>MARZ Spring Boot Starter</name>
     <description>Runtime configuration hot-swap for Spring Boot — change feature flags, toggles, and config values without restart</description>
-    <url>https://github.com/NAMAN143-code/hswap</url>
+    <url>https://github.com/NAMAN143-code/mymarz</url>
 
     <licenses>
         <license>
@@ -27,14 +27,14 @@
             <name>Naman Sharma</name>
             <email>naman143sharma@gmail.com</email>
             <organization>MARZ</organization>
-            <organizationUrl>https://github.com/NAMAN143-code/hswap</organizationUrl>
+            <organizationUrl>https://github.com/NAMAN143-code/mymarz</organizationUrl>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/NAMAN143-code/hswap.git</connection>
-        <developerConnection>scm:git:ssh://github.com:NAMAN143-code/hswap.git</developerConnection>
-        <url>https://github.com/NAMAN143-code/hswap</url>
+        <connection>scm:git:git://github.com/NAMAN143-code/mymarz.git</connection>
+        <developerConnection>scm:git:ssh://github.com:NAMAN143-code/mymarz.git</developerConnection>
+        <url>https://github.com/NAMAN143-code/mymarz</url>
     </scm>
 
     <properties>

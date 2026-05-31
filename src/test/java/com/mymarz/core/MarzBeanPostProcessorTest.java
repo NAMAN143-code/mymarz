@@ -108,7 +108,7 @@ class MarzBeanPostProcessorTest {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // 4. BEAN WITH NO @HOTSWAP FIELDS — NO-OP
+    // 4. BEAN WITH NO @Marz FIELDS — NO-OP
     // ═══════════════════════════════════════════════════════════════════
 
     @Test
