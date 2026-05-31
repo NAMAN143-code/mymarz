@@ -10,6 +10,20 @@ server:
 marz:
   enabled: true
 
+# Demo: the naive baseline service re-reads this same file on every access.
+demo:
+  config-file: config/marz-demo.yml
+
+# Expose actuator endpoints so MARZ health + metrics are visible.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     com.mymarz: DEBUG
