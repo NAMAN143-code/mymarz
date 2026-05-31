@@ -30,7 +30,7 @@ MARZ uses OS-level file change detection (`WatchService` — inotify on Linux, k
 <dependency>
     <groupId>com.mymarz</groupId>
     <artifactId>marz-spring-boot-starter</artifactId>
-    <version>1.0.0</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 
