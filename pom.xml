@@ -284,7 +284,14 @@
                         <extensions>true</extensions>
                         <configuration>
                             <publishingServerId>central</publishingServerId>
-                            <autoPublish>true</autoPublish>
+                            <!--
+                              autoPublish=false: the deploy uploads and validates the
+                              bundle, then waits for a manual "Publish" click in the
+                              Central Portal UI. This is a safety gate for the first
+                              release — once the 0.1.0 publish is confirmed good, flip
+                              this back to true so later tags publish automatically.
+                            -->
+                            <autoPublish>false</autoPublish>
                         </configuration>
                     </plugin>
                 </plugins>
