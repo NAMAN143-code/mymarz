@@ -30,7 +30,7 @@ MARZ uses OS-level file change detection (`WatchService` — inotify on Linux, k
 <dependency>
     <groupId>com.mymarz</groupId>
     <artifactId>marz-spring-boot-starter</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
@@ -120,16 +120,16 @@ No configuration needed — `SourceStrategyResolver` probes the filesystem at st
 
 ```java
 @Marz(
-    key = "feature.dark-mode.enabled",     // Required: config key to resolve
-    source = "file://config/marz.yml",  // Config source URI (default: platform://marz)
-    pollInterval = 5000,                   // Safety-net poll interval in ms (default: 5000)
-    defaultValue = "false",                // Fallback when source is unreachable
-    type = MARZType.INFERRED,           // Type coercion (auto-detected from field)
-    description = "Enable dark mode",      // Human-readable label for dashboard
-    requiresApproval = false,              // Require approval workflow via platform
-    sensitive = false                      // Mask value in logs and dashboard
+    key = "feature.dark-mode.enabled",      // Required: config key to resolve
+    source = "file://config/marz.yml",      // Config source URI (default: platform://marz)
+    safetyNetInterval = 60000,              // Safety-net CRC32 check interval in ms (default: 60000)
+    defaultValue = "false",                 // Fallback when source is unreachable
+    type = MarzType.INFERRED,               // Type coercion (auto-detected from field)
+    description = "Enable dark mode",        // Human-readable label for dashboard
+    requiresApproval = false,               // Require approval workflow via platform
+    sensitive = false                       // Mask value in logs and dashboard
 )
-private boolean darkModeEnabled;
+private volatile boolean darkModeEnabled;   // Fields MUST be volatile
 ```
 
 ### Supported Types
