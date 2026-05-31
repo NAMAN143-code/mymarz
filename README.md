@@ -1,6 +1,6 @@
 # MARZ
 
-[![Build](https://github.com/NAMAN143-code/hswap/actions/workflows/ci.yml/badge.svg)](https://github.com/NAMAN143-code/hswap/actions)
+[![Build](https://github.com/NAMAN143-code/mymarz/actions/workflows/ci.yml/badge.svg)](https://github.com/NAMAN143-code/mymarz/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://openjdk.org/projects/jdk/17/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green.svg)](https://spring.io/projects/spring-boot)
@@ -195,8 +195,8 @@ Every `@Marz` field is backed by an `AtomicReference`. Reads are lock-free volat
 ## Building from Source
 
 ```bash
-git clone https://github.com/NAMAN143-code/hswap.git
-cd hswap
+git clone https://github.com/NAMAN143-code/mymarz.git
+cd mymarz
 mvn clean install
 ```
 
