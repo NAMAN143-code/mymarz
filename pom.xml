@@ -6,7 +6,7 @@
 
     <groupId>com.mymarz</groupId>
     <artifactId>marz-spring-boot-starter</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
     <packaging>jar</packaging>
 
     <name>MARZ Spring Boot Starter</name>
