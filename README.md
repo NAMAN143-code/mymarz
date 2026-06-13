@@ -147,13 +147,24 @@ private volatile boolean darkModeEnabled;   // Fields MUST be volatile
 | HTTP endpoint | `http://` / `https://` | `https://config-server/api/v1/config` |
 | MARZ Platform | `platform://marz` | Connects to commercial SaaS dashboard |
 
+### Default values & removed keys
+
+`defaultValue` is the fallback used at startup when the key is missing from the source (or the source is unreachable). It also defines what happens if a key is **later removed** from the source while the app is running:
+
+| Situation | Behavior |
+|-----------|----------|
+| Key present in source | The source value is applied (and coerced to the field type). |
+| Key missing at startup / source unreachable | The field takes `defaultValue` (if declared), else its field initializer. |
+| Key **removed** from the source at runtime | If `defaultValue` is declared, the field **reverts to it**; otherwise the field **retains its current value**. A removed key never writes `null` to a primitive field. |
+| Value can't be coerced (e.g. `"abc"` for an `int`) | That key is skipped (a failure `MarzEvent` is published) and retried on the next change — other keys in the same update still apply. |
+
 ## Common Pitfalls
 
 | Pitfall | What happens | Fix |
 |---------|--------------|-----|
 | **Forgetting `volatile`** | App fails fast at startup with `IllegalStateException` | Every `@Marz` field **must** be declared `volatile` (`private volatile` is the convention). This is enforced — the JMM can't guarantee cross-thread visibility of a background write without it. Only `volatile` is required; the field may use any access modifier. |
 | **AOP-proxied beans** (`@Transactional`, `@Cacheable`, `@Async`) | Fully supported | MARZ unwraps the proxy and binds the **target** instance, so initial values apply and swaps are visible through proxied methods. No action needed. |
-| **Non-singleton scope** (`prototype`, `request`, `session`) | App fails fast with an actionable message | `@Marz` is supported on **singleton** beans only in this release. Move the field to a singleton, or make the bean a singleton. |
+| **Non-singleton scope** (`prototype`, `request`, `session`) | App fails fast with an actionable message | `@Marz` is supported on **singleton** beans only in this release. Move the field to a singleton, or make the bean a singleton. Support for other scopes (via weak references, so short-lived instances aren't pinned) is planned for a future release. |
 | **Kubernetes `subPath` ConfigMap mounts** | The file never updates (a Kubernetes limitation, not MARZ) | Mount the ConfigMap as a **directory** (no `subPath`). See [Running on Kubernetes](#running-on-kubernetes). |
 
 ## Running on Kubernetes
