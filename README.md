@@ -53,10 +53,10 @@ rate:
 public class CheckoutService {
 
     @Marz(key = "feature.new-checkout.enabled", source = "file://config/marz.yml")
-    private boolean newCheckoutEnabled = false;
+    private volatile boolean newCheckoutEnabled = false;
 
     @Marz(key = "rate.limit.max-requests", source = "file://config/marz.yml")
-    private int maxRequests = 100;
+    private volatile int maxRequests = 100;
 
     public void processOrder(Order order) {
         if (newCheckoutEnabled) {
@@ -146,6 +146,37 @@ private volatile boolean darkModeEnabled;   // Fields MUST be volatile
 | Classpath | `classpath:` | `classpath:config.properties` |
 | HTTP endpoint | `http://` / `https://` | `https://config-server/api/v1/config` |
 | MARZ Platform | `platform://marz` | Connects to commercial SaaS dashboard |
+
+## Common Pitfalls
+
+| Pitfall | What happens | Fix |
+|---------|--------------|-----|
+| **Forgetting `volatile`** | App fails fast at startup with `IllegalStateException` | Every `@Marz` field **must** be declared `volatile` (`private volatile` is the convention). This is enforced — the JMM can't guarantee cross-thread visibility of a background write without it. Only `volatile` is required; the field may use any access modifier. |
+| **AOP-proxied beans** (`@Transactional`, `@Cacheable`, `@Async`) | Fully supported | MARZ unwraps the proxy and binds the **target** instance, so initial values apply and swaps are visible through proxied methods. No action needed. |
+| **Non-singleton scope** (`prototype`, `request`, `session`) | App fails fast with an actionable message | `@Marz` is supported on **singleton** beans only in this release. Move the field to a singleton, or make the bean a singleton. |
+| **Kubernetes `subPath` ConfigMap mounts** | The file never updates (a Kubernetes limitation, not MARZ) | Mount the ConfigMap as a **directory** (no `subPath`). See [Running on Kubernetes](#running-on-kubernetes). |
+
+## Running on Kubernetes
+
+MARZ detects Kubernetes ConfigMap updates **without a restart**. ConfigMap volumes update by atomically swapping a `..data` directory symlink rather than rewriting the file in place; MARZ detects that swap and re-reads through the symlink, so changes apply within the debounce window — not on the 60s safety-net poll.
+
+```yaml
+# Deployment — mount the ConfigMap as a DIRECTORY (not subPath)
+volumeMounts:
+  - name: marz-config
+    mountPath: /etc/marz        # @Marz(source = "file:///etc/marz/marz.yml")
+volumes:
+  - name: marz-config
+    configMap:
+      name: marz-config
+```
+
+```java
+@Marz(key = "feature.new-checkout.enabled", source = "file:///etc/marz/marz.yml")
+private volatile boolean newCheckoutEnabled = false;
+```
+
+> **⚠️ `subPath` caveat:** A ConfigMap mounted with `subPath` is copied once at pod start and **never updated** by Kubernetes — no tool can hot-swap it. Mount the ConfigMap as a directory (as above) so live updates propagate. MARZ logs the resolved mount mode (`KUBERNETES_CONFIGMAP` vs `PLAIN_FILE`) at startup.
 
 ## Listening for Changes
 

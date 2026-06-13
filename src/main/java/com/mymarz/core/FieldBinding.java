@@ -30,6 +30,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * @param key           e.g., "feature.newCheckout.enabled"
  * @param sourceUri     e.g., "file:///etc/myapp/config.yml"
  * @param sensitive     from {@code @Marz(sensitive=true)} — mask in logs
+ * @param defaultValue  raw {@code @Marz(defaultValue=...)} string ({@code ""} if none);
+ *                      used to revert the field when its key is removed from the source
+ *                      (see {@link MarzRegistry#onSourceChange})
  * @since 1.0.0
  */
 public record FieldBinding(
@@ -41,5 +44,17 @@ public record FieldBinding(
         Class<?> targetType,
         String key,
         String sourceUri,
-        boolean sensitive
-) {}
+        boolean sensitive,
+        String defaultValue
+) {
+
+    /**
+     * Backward-compatible constructor for bindings without a declared default value.
+     * Equivalent to passing {@code defaultValue = ""}.
+     */
+    public FieldBinding(Object bean, String beanClassName, String fieldName, Field field,
+                        AtomicReference<Object> ref, Class<?> targetType, String key,
+                        String sourceUri, boolean sensitive) {
+        this(bean, beanClassName, fieldName, field, ref, targetType, key, sourceUri, sensitive, "");
+    }
+}
