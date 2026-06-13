@@ -10,6 +10,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -120,6 +122,71 @@ class HttpConfigSourcePollTest {
         assertThat(source.getConsecutiveFailures()).isZero();
         assertThat(source.getCachedState()).containsEntry("key", "value");
         assertThat(callCount.get()).isEqualTo(2); // initial + 1 poll
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // POISON VALUE — failed apply drops the ETag so the next poll retries (KAN-98)
+    // ═══════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("poll(): an un-coercible value is retained and drops lastEtag, so the next poll re-fetches (unconditionally) and applies the fix")
+    void poll_poisonValue_dropsEtag_andRetriesOnNextPoll() {
+        AtomicInteger callCount = new AtomicInteger(0);
+        List<String> ifNoneMatchSeen = new CopyOnWriteArrayList<>();
+
+        server.createContext("/config.json", exchange -> {
+            int n = callCount.incrementAndGet();
+            String inm = exchange.getRequestHeaders().getFirst("If-None-Match");
+            ifNoneMatchSeen.add(inm == null ? "<none>" : inm);
+
+            // call 1: initial load (good); call 2: poison; call 3: operator fixed it
+            String body = switch (n) {
+                case 1 -> "{\"rate.limit\": \"100\"}";
+                case 2 -> "{\"rate.limit\": \"abc\"}";   // un-coercible for an int field
+                default -> "{\"rate.limit\": \"200\"}";
+            };
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.getResponseHeaders().add("ETag", "etag-" + n);
+            exchange.sendResponseHeaders(200, body.length());
+            try (OutputStream os = exchange.getResponseBody()) { os.write(body.getBytes()); }
+        });
+        server.start();
+
+        String uri = "http://localhost:" + port + "/config.json";
+        HttpConfigSource source = new HttpConfigSource(uri, parser, registry, 1);
+
+        // Bind an int field so "abc" fails coercion (field=null → only the ref is exercised).
+        AtomicReference<Object> ref = new AtomicReference<>(100);
+        registry.register("rate.limit", new FieldBinding(
+                this, "TestBean", "rateLimit", null, ref,
+                int.class, "rate.limit", uri, false));
+
+        // Initial load consumed call #1 (good) and set the ETag.
+        assertThat(source.getCachedState()).containsEntry("rate.limit", "100");
+        assertThat(source.getLastEtag()).isEqualTo("etag-1");
+
+        // ── Poll #1: the poison value "abc" ──────────────────────────────
+        source.poll();
+
+        // The poison key was NOT applied and is retained at its previous value for retry.
+        assertThat(ref.get()).isEqualTo(100);
+        assertThat(source.getCachedState()).containsEntry("rate.limit", "100");
+        // THE BRANCH UNDER TEST (HttpConfigSource ~line 133): a failed apply drops the ETag.
+        assertThat(source.getLastEtag()).isNull();
+
+        // ── Poll #2: the operator fixed the value to "200" ───────────────
+        source.poll();
+
+        assertThat(ref.get()).isEqualTo(200);                     // retry applied the fix
+        assertThat(source.getCachedState()).containsEntry("rate.limit", "200");
+        assertThat(source.getLastEtag()).isEqualTo("etag-3");
+
+        // The conditional-GET headers prove WHY the retry worked: the poison poll sent
+        // If-None-Match (etag-1), but the retry poll was UNCONDITIONAL because the ETag
+        // was dropped — without that, the server could answer 304 and strand the poison
+        // key forever (the exact regression this guards).
+        assertThat(ifNoneMatchSeen.get(1)).isEqualTo("etag-1"); // poison poll: conditional
+        assertThat(ifNoneMatchSeen.get(2)).isEqualTo("<none>"); // retry poll: unconditional
     }
 
     // ═══════════════════════════════════════════════════════════════════
