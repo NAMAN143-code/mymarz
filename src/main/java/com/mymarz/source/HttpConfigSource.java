@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 
 /**
@@ -117,11 +118,22 @@ public class HttpConfigSource implements ConfigSource {
             if (status == 200) {
                 response.headers().firstValue("ETag").ifPresent(etag -> lastEtag = etag);
                 Map<String, String> newState = parser.parse(response.body(), uri);
-                Map<String, String> changedKeys = FileConfigSource.diff(cachedState, newState);
-                cachedState = Map.copyOf(newState);
+                Map<String, String> previousState = cachedState;
+                Map<String, String> changedKeys = FileConfigSource.diff(previousState, newState);
                 if (!changedKeys.isEmpty()) {
                     log.debug("HTTP poll detected {} changed key(s) from {}", changedKeys.size(), uri);
-                    registry.onSourceChange(sourceId(), changedKeys);
+                    // KAN-98: per-key isolation; retain failed keys for retry.
+                    Set<String> failed = registry.onSourceChange(sourceId(), changedKeys);
+                    cachedState = FileConfigSource.advanceCache(previousState, newState, failed);
+                    if (!failed.isEmpty()) {
+                        log.warn("HTTP source {}: {} key(s) failed to apply, will retry on next poll: {}",
+                                uri, failed.size(), failed);
+                        // Drop the ETag so the next tick does a full GET (not a 304) and
+                        // re-diffs the retained failed keys instead of stalling on them.
+                        lastEtag = null;
+                    }
+                } else {
+                    cachedState = Map.copyOf(newState);
                 }
                 resetFailures();
                 return;

@@ -148,9 +148,15 @@ public class ConfigUpdateHandler implements PlatformMessageHandler {
             return buildNack(changeId, key, "KEY_NOT_FOUND");
         }
 
-        // Apply via the standard change path
+        // Apply via the standard change path. onSourceChange now isolates per-key
+        // (KAN-98) and reports failures via its return value instead of throwing,
+        // so a poison value still produces a TYPE_MISMATCH NACK to the platform.
         try {
-            registry.onSourceChange("platform://marz", Map.of(key, value));
+            Set<String> failed = registry.onSourceChange("platform://marz", Map.of(key, value));
+            if (failed.contains(key)) {
+                log.warn("CONFIG_UPDATE: TYPE_MISMATCH for key '{}' (value '{}')", key, value);
+                return buildNack(changeId, key, "TYPE_MISMATCH");
+            }
         } catch (Exception e) {
             log.warn("CONFIG_UPDATE: TYPE_MISMATCH for key '{}': {}", key, e.getMessage());
             return buildNack(changeId, key, "TYPE_MISMATCH");
