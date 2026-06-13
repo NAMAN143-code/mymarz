@@ -18,10 +18,20 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * KAN-96 end-to-end: a real Spring-container-created CGLIB proxy (forced here via
- * {@code @Async}, identical proxying mechanics to {@code @Transactional}/
- * {@code @Cacheable}) must still receive its initial {@code @Marz} value and have a
- * runtime swap visible through a method invoked on the proxy.
+ * KAN-96 end-to-end: real Spring-container-created proxies must still receive their
+ * initial {@code @Marz} value and have a runtime swap visible through a method invoked
+ * on the proxy. Both proxy flavours are exercised in a live container here:
+ *
+ * <ul>
+ *   <li><strong>CGLIB</strong> — a concrete (no-interface) bean with an {@code @Async}
+ *       method, the same auto-proxy path {@code @Transactional}/{@code @Cacheable} use.</li>
+ *   <li><strong>JDK dynamic proxy</strong> — an interface-implementing bean with an
+ *       {@code @Async} method (default {@code proxyTargetClass=false}), injected by its
+ *       interface.</li>
+ * </ul>
+ *
+ * <p>The dedicated {@code @Transactional} CGLIB case lives in
+ * {@link MarzTransactionalProxyIntegrationTest}.</p>
  */
 @SpringBootTest(classes = MarzAopProxyIntegrationTest.Config.class)
 class MarzAopProxyIntegrationTest {
@@ -33,6 +43,12 @@ class MarzAopProxyIntegrationTest {
         @Bean
         ProxiedFeatureService proxiedFeatureService() {
             return new ProxiedFeatureService();
+        }
+
+        // Interface return type + @Async + default proxyTargetClass=false → JDK dynamic proxy.
+        @Bean
+        JdkFeatureService jdkFeatureService() {
+            return new JdkFeatureServiceImpl();
         }
     }
 
@@ -50,24 +66,56 @@ class MarzAopProxyIntegrationTest {
         }
     }
 
+    interface JdkFeatureService {
+        boolean isJdkEnabled();
+    }
+
+    static class JdkFeatureServiceImpl implements JdkFeatureService {
+        @Marz(key = "feature.jdk.enabled", defaultValue = "false")
+        volatile boolean enabled;
+
+        @Async
+        public void touch() { /* forces an interface-based JDK proxy */ }
+
+        @Override
+        public boolean isJdkEnabled() {
+            return enabled;
+        }
+    }
+
     @Autowired
-    ProxiedFeatureService service; // injected as the proxy
+    ProxiedFeatureService service; // injected as the CGLIB proxy
+
+    @Autowired
+    JdkFeatureService jdkService; // injected as the JDK dynamic proxy (interface type)
 
     @Autowired
     MarzRegistry registry;
 
     @Test
-    @DisplayName("proxied bean: initial value applies and a runtime swap is visible through the proxy")
-    void proxiedBean_initialApplies_andSwapVisible() {
-        // Sanity: the injected bean really is a proxy.
-        assertThat(AopUtils.isAopProxy(service)).isTrue();
+    @DisplayName("CGLIB-proxied bean: initial value applies and a runtime swap is visible through the proxy")
+    void cglibProxiedBean_initialApplies_andSwapVisible() {
+        assertThat(AopUtils.isCglibProxy(service)).isTrue();
 
-        // Registered once (to the target), initial value visible through the proxy.
         assertThat(registry.getBindings("feature.async.enabled")).hasSize(1);
         assertThat(service.isEnabled()).isFalse();
 
-        // Runtime swap is visible through a method invoked on the proxy.
         registry.onSourceChange("platform://marz", Map.of("feature.async.enabled", "true"));
         assertThat(service.isEnabled()).isTrue();
+    }
+
+    @Test
+    @DisplayName("JDK interface-proxied bean: initial value applies and a runtime swap is visible through the proxy")
+    void jdkProxiedBean_initialApplies_andSwapVisible() {
+        // Sanity: the injected bean is a JDK dynamic proxy, not the concrete class.
+        assertThat(AopUtils.isJdkDynamicProxy(jdkService)).isTrue();
+
+        // Bound once (to the target), initial value visible through the interface method.
+        assertThat(registry.getBindings("feature.jdk.enabled")).hasSize(1);
+        assertThat(jdkService.isJdkEnabled()).isFalse();
+
+        // Runtime swap is visible through a method invoked on the proxy.
+        registry.onSourceChange("platform://marz", Map.of("feature.jdk.enabled", "true"));
+        assertThat(jdkService.isJdkEnabled()).isTrue();
     }
 }

@@ -137,4 +137,23 @@ class BatchPoisoningTest {
         assertThat(holder.count).isEqualTo(7);
         assertThat(holder.name).isEqualTo("ok");
     }
+
+    @Test
+    @DisplayName("a key with two bindings where one coerces and the other fails: the good binding applies, the bad one is isolated, the key is reported failed")
+    void multiBindingKey_partialFailureIsolated() throws Exception {
+        // Same key bound to a boolean AND an int field. The value "true" coerces for the
+        // boolean but fails for the int — exercising per-binding isolation WITHIN one key.
+        bind("flag", "shared", "");   // boolean
+        bind("count", "shared", "");  // int
+
+        Set<String> failed = registry.onSourceChange("src", Map.of("shared", "true"));
+
+        assertThat(failed).containsExactly("shared");
+        assertThat(holder.flag).isTrue();   // good binding applied
+        assertThat(holder.count).isZero();  // bad binding isolated — retained old value
+
+        // The same key produced BOTH a change event (boolean) and a failure event (int).
+        assertThat(events).anyMatch(e -> !e.isFailure() && e.getKey().equals("shared"));
+        assertThat(events).anyMatch(e -> e.isFailure() && e.getKey().equals("shared"));
+    }
 }
