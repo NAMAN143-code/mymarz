@@ -4,9 +4,12 @@ import com.mymarz.annotation.Marz;
 import com.mymarz.autoconfigure.MarzAutoConfiguration;
 import com.mymarz.source.ConfigFormatParser;
 import com.mymarz.type.TypeCoercer;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -19,6 +22,7 @@ import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -174,5 +178,67 @@ class MarzScopeAndDestructionTest {
         // Nothing in production calls registry.clear() on shutdown, so an empty
         // result proves the destruction hook unregistered the binding (no leak).
         assertThat(registry.getBindings("x.flag")).isEmpty();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Scope detection via the bean factory — request/session + inner-bean branch
+    // ═══════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("scope detection via the bean factory")
+    class ScopeEdgeCases {
+
+        private MarzRegistry registry;
+        private DefaultListableBeanFactory factory;
+        private MarzBeanPostProcessor bpp;
+
+        @BeforeEach
+        void setUp() {
+            registry = new MarzRegistry(mock(ApplicationEventPublisher.class), new TypeCoercer());
+            factory = new DefaultListableBeanFactory();
+            ConfigSourceResolver resolver = new ConfigSourceResolver(
+                    new ConfigFormatParser(), registry, new SourceStrategyResolver(), null, 5000L);
+            bpp = new MarzBeanPostProcessor(registry, new TypeCoercer(), resolver, new SelfRegistrar());
+            bpp.setBeanFactory(factory); // DefaultListableBeanFactory is a ConfigurableListableBeanFactory
+        }
+
+        @Test
+        @DisplayName("request-scoped @Marz bean is rejected, with its scope named in the message")
+        void requestScope_rejected() {
+            RootBeanDefinition bd = new RootBeanDefinition(FlagHolder.class);
+            bd.setScope("request");
+            factory.registerBeanDefinition("requestBean", bd);
+
+            assertThatThrownBy(() -> bpp.postProcessAfterInitialization(new FlagHolder(), "requestBean"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("singleton-scoped")
+                    .hasMessageContaining("request");
+            assertThat(registry.getRegisteredKeyCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("session-scoped @Marz bean is rejected, with its scope named in the message")
+        void sessionScope_rejected() {
+            RootBeanDefinition bd = new RootBeanDefinition(FlagHolder.class);
+            bd.setScope("session");
+            factory.registerBeanDefinition("sessionBean", bd);
+
+            assertThatThrownBy(() -> bpp.postProcessAfterInitialization(new FlagHolder(), "sessionBean"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("singleton-scoped")
+                    .hasMessageContaining("session");
+        }
+
+        @Test
+        @DisplayName("inner/anonymous bean (no definition for the name) can't be scope-checked → allowed, not rejected")
+        void innerBeanName_absent_allowed() {
+            // No bean definition for this name → containsBeanDefinition(beanName) is false,
+            // so the scope is indeterminable and the BPP must allow registration (line ~175).
+            assertThat(factory.containsBeanDefinition("innerBean")).isFalse();
+
+            bpp.postProcessAfterInitialization(new FlagHolder(), "innerBean"); // must not throw
+
+            assertThat(registry.getBindings("x.flag")).hasSize(1);
+        }
     }
 }
