@@ -54,7 +54,7 @@
 
         <!-- Parsing -->
         <snakeyaml.version>2.2</snakeyaml.version>
-        <jackson.version>2.17.2</jackson.version>
+        <jackson.version>2.22.0</jackson.version>
 
         <!-- Metrics -->
         <micrometer.version>1.13.4</micrometer.version>
